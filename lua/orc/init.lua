@@ -17,6 +17,7 @@ M.config = {
 ---@param opts? OrcConfig
 function M.setup(opts)
   M.config = vim.tbl_deep_extend("force", M.config, opts or {})
+  require("orc.spaces").restore()
 end
 
 -- Public API — delegate to submodules
@@ -38,26 +39,49 @@ function M.switch(name)
 end
 
 function M.list()
-  local spaces = require("orc.spaces")
-  local entries = spaces.list()
-
-  if vim.tbl_isempty(entries) then
-    vim.notify("orc: no spaces", vim.log.levels.INFO)
-    return
-  end
-
-  local lines = {}
-  for name, space in pairs(entries) do
-    local marker = (name == spaces.active_space) and "* " or "  "
-    table.insert(lines, marker .. name .. " [" .. space.status .. "] " .. space.branch)
-  end
-
-  table.sort(lines)
-  vim.notify("orc spaces:\n" .. table.concat(lines, "\n"), vim.log.levels.INFO)
+  require("orc.ui").list()
 end
 
 function M.prompt(name)
   require("orc.prompt").prompt(name)
+end
+
+--- Get the active space name.
+---@return string|nil
+function M.get_active()
+  return require("orc.spaces").get_active()
+end
+
+--- Get info about the main worktree.
+---@return {path: string, branch: string}|nil
+function M.main_worktree()
+  return require("orc.spaces").main_worktree()
+end
+
+--- Get all spaces (excludes @main).
+---@return table<string, OrcSpace>
+function M.spaces()
+  return require("orc.spaces").list()
+end
+
+--- Get a space by name, or the active space.
+---@param name? string
+---@return OrcSpace|nil, string|nil
+function M.get(name)
+  return require("orc.spaces").get(name)
+end
+
+--- Update a space's status.
+---@param name string
+---@param status string
+function M.set_status(name, status)
+  require("orc.spaces").set_status(name, status)
+end
+
+--- Get space names for command completion.
+---@return string[]
+function M.names()
+  return require("orc.spaces").names()
 end
 
 return M

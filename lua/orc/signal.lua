@@ -29,22 +29,39 @@ local function signal_level(signal_type)
 end
 
 --- Read and process the signal file.
+--- Uses rename to atomically claim the file contents, avoiding races
+--- where a write between read and truncate would be lost.
 ---@param name string Space name
 ---@param path string Signal file path
 local function process_signal(name, path)
-  local f = io.open(path, "r")
+  local tmp = path .. ".processing"
+
+  -- Atomically move the signal file so no writes are lost
+  local ok = os.rename(path, tmp)
+  if not ok then
+    return
+  end
+
+  -- Re-create the signal file for future writes
+  local touch = io.open(path, "w")
+  if touch then
+    touch:close()
+  end
+
+  local f = io.open(tmp, "r")
   if not f then
+    os.remove(tmp)
     return
   end
 
   local content = f:read("*a")
   f:close()
+  os.remove(tmp)
 
   if content == "" then
     return
   end
 
-  -- Process each line
   for line in content:gmatch("[^\r\n]+") do
     local signal_type, message = parse_signal(line)
     if signal_type and message then
@@ -54,23 +71,14 @@ local function process_signal(name, path)
           string.format("orc [%s] %s: %s", name, signal_type, message),
           level
         )
-        -- Update space status
-        local spaces = require("orc.spaces")
-        if spaces.spaces[name] then
-          if signal_type == "DONE" then
-            spaces.spaces[name].status = "idle"
-          elseif signal_type == "QUESTION" or signal_type == "BLOCKED" then
-            spaces.spaces[name].status = "needs_attention"
-          end
+        local orc = require("orc")
+        if signal_type == "DONE" then
+          orc.set_status(name, "idle")
+        elseif signal_type == "QUESTION" or signal_type == "BLOCKED" then
+          orc.set_status(name, "needs_attention")
         end
       end)
     end
-  end
-
-  -- Clear the signal file after reading
-  f = io.open(path, "w")
-  if f then
-    f:close()
   end
 end
 

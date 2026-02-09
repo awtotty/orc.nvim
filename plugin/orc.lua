@@ -13,10 +13,18 @@ vim.api.nvim_create_user_command("OrcCreate", function(cmd)
     end)
     return
   end
-  require("orc").create(name)
+  -- Parse optional flags: --branch=<branch> --worktree=<path>
+  local opts = {}
+  for i = 2, #cmd.fargs do
+    local branch = cmd.fargs[i]:match("^%-%-branch=(.+)$")
+    if branch then opts.branch = branch end
+    local wt = cmd.fargs[i]:match("^%-%-worktree=(.+)$")
+    if wt then opts.worktree = wt end
+  end
+  require("orc").create(name, opts)
 end, {
-  nargs = "?",
-  desc = "Create a new orc space (worktree + agent)",
+  nargs = "*",
+  desc = "Create a new orc space (worktree + agent). Options: --branch=<name> --worktree=<path>",
 })
 
 vim.api.nvim_create_user_command("OrcToggle", function(cmd)
@@ -24,7 +32,7 @@ vim.api.nvim_create_user_command("OrcToggle", function(cmd)
 end, {
   nargs = "?",
   complete = function()
-    return vim.tbl_keys(require("orc.spaces").spaces)
+    return require("orc").names()
   end,
   desc = "Toggle an orc space terminal",
 })
@@ -39,7 +47,7 @@ vim.api.nvim_create_user_command("OrcDelete", function(cmd)
 end, {
   nargs = 1,
   complete = function()
-    return vim.tbl_keys(require("orc.spaces").spaces)
+    return require("orc").names()
   end,
   desc = "Delete an orc space",
 })
@@ -56,7 +64,7 @@ end, {
   nargs = "?",
   range = true,
   complete = function()
-    return vim.tbl_keys(require("orc.spaces").spaces)
+    return require("orc").names()
   end,
   desc = "Send a prompt to an orc space",
 })
@@ -71,7 +79,7 @@ vim.api.nvim_create_user_command("OrcSwitch", function(cmd)
 end, {
   nargs = 1,
   complete = function()
-    return vim.tbl_keys(require("orc.spaces").spaces)
+    return require("orc").names()
   end,
   desc = "Switch the active orc space",
 })

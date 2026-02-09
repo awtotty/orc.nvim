@@ -49,8 +49,8 @@ end
 ---@param space_name? string
 ---@param text string
 local function send_to_space(space_name, text)
-  local spaces = require("orc.spaces")
-  local space, name = spaces.get(space_name)
+  local orc = require("orc")
+  local space, name = orc.get(space_name)
 
   if not space then
     vim.notify("orc: no space to send to", vim.log.levels.WARN)
