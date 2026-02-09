@@ -12,11 +12,19 @@ M.config = {
   worktree_base = ".orc",
   signal_file = ".claude/signal",
   terminal_direction = "float",
+  keys = {
+    { "<leader>ow", "<cmd>OrcList<cr>", mode = "n", desc = "Orc: list spaces" },
+    { "<leader>ot", "<cmd>OrcToggle<cr>", mode = { "n", "v" }, desc = "Orc: toggle terminal" },
+    { "<leader>oe", "<cmd>OrcPrompt<cr>", mode = { "n", "v" }, desc = "Orc: prompt" },
+  },
 }
 
 ---@param opts? OrcConfig
 function M.setup(opts)
   M.config = vim.tbl_deep_extend("force", M.config, opts or {})
+  for _, key in ipairs(M.config.keys) do
+    vim.keymap.set(key.mode, key[1], key[2], { desc = key.desc })
+  end
   require("orc.spaces").restore()
 end
 

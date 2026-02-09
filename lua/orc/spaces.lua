@@ -232,7 +232,7 @@ function M.save()
     return
   end
 
-  local data = {}
+  local data = { _active = M.active_space }
   for name, space in pairs(M.spaces) do
     if name ~= "@main" then
       data[name] = {
@@ -274,10 +274,17 @@ function M.restore()
     return
   end
 
+  local saved_active = data._active
+  data._active = nil
+
   for name, info in pairs(data) do
     if not M.spaces[name] and vim.fn.isdirectory(info.worktree_path) == 1 then
       spawn_space(name, info.worktree_path, info.branch)
     end
+  end
+
+  if saved_active then
+    M.active_space = saved_active
   end
 end
 
@@ -551,6 +558,7 @@ function M.switch(name)
   end
 
   M.active_space = name
+  M.save()
   vim.cmd("stopinsert")
   local display = (name == "@main") and "main" or name
   vim.notify("Orc: active space -> '" .. display .. "'", vim.log.levels.INFO)
