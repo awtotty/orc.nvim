@@ -5,7 +5,7 @@ local M = {}
 ---@field chan number Terminal channel ID
 ---@field worktree_path string Absolute path to the worktree
 ---@field branch string Branch name
----@field status string "active"|"needs_attention"|"idle"|"exited"
+---@field status string "ready"|"needs_attention"|"exited"
 ---@field win number|nil Window ID if currently visible
 
 ---@type table<string, OrcSpace>
@@ -61,7 +61,7 @@ local function spawn_space(name, worktree_path, branch)
     chan = chan,
     worktree_path = worktree_path,
     branch = branch,
-    status = "active",
+    status = "ready",
     win = nil,
   }
 

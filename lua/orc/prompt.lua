@@ -64,6 +64,7 @@ local function send_to_space(space_name, text)
 
   -- Send the text followed by Enter
   vim.fn.chansend(space.chan, text .. "\n")
+  orc.set_status(name, "ready")
   vim.notify("orc: prompt sent to '" .. name .. "'", vim.log.levels.INFO)
 end
 
