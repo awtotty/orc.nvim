@@ -29,6 +29,7 @@ local function float_input(title, callback, default)
     closed = true
     local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
     vim.api.nvim_win_close(win, true)
+    vim.cmd("stopinsert")
     local value = vim.trim(table.concat(lines, ""))
     if value == "" then
       value = default
@@ -41,6 +42,7 @@ local function float_input(title, callback, default)
     if closed then return end
     closed = true
     vim.api.nvim_win_close(win, true)
+    vim.cmd("stopinsert")
   end
 
   vim.keymap.set("i", "<CR>", submit, { buffer = buf, nowait = true })

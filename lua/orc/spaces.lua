@@ -312,6 +312,7 @@ function M.create(name, opts)
     return
   end
 
+  M.active_space = name
   M.save()
   vim.notify("orc: created space '" .. name .. "'", vim.log.levels.INFO)
 end
@@ -502,6 +503,7 @@ function M.switch(name)
   end
 
   M.active_space = name
+  vim.cmd("stopinsert")
   local display = (name == "@main") and "main" or name
   vim.notify("orc: active space -> '" .. display .. "'", vim.log.levels.INFO)
 end
