@@ -9,7 +9,7 @@ local M = {}
 ---@type OrcConfig
 M.config = {
   cli = "claude",
-  worktree_base = ".orc-spaces",
+  worktree_base = ".orc",
   signal_file = ".claude/signal",
   terminal_direction = "float",
 }

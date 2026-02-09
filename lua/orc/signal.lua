@@ -68,7 +68,7 @@ local function process_signal(name, path)
       local level = signal_level(signal_type)
       vim.schedule(function()
         vim.notify(
-          string.format("orc [%s] %s: %s", name, signal_type, message),
+          string.format("Orc [%s] %s: %s", name, signal_type, message),
           level
         )
         local orc = require("orc")

@@ -28,7 +28,7 @@ end
 
 --- Ensure the shared CLAUDE.md exists in the worktree base directory.
 --- Claude Code walks parent directories, so all worktrees inherit it.
----@param base_dir string The .orc-spaces directory
+---@param base_dir string The .orc directory
 local function ensure_signal_instructions(base_dir)
   vim.fn.mkdir(base_dir, "p")
   local claude_md = base_dir .. "/CLAUDE.md"
@@ -40,7 +40,7 @@ local function ensure_signal_instructions(base_dir)
   if f then
     f:write([[# Orc Signal Protocol
 
-You are running in an orc space. The user cannot see your output unless they open your terminal. You MUST signal the editor so the user knows when you need them.
+You are running in an Orc space. The user cannot see your output unless they open your terminal. You MUST signal the editor so the user knows when you need them.
 
 Signal by appending to `$ORC_SIGNAL_FILE`:
 
@@ -150,7 +150,7 @@ local function spawn_space(name, worktree_path, branch)
         vim.schedule(function()
           if M.spaces[name] then
             M.spaces[name].status = "exited"
-            vim.notify("orc: '" .. name .. "' CLI exited (code " .. code .. ")", vim.log.levels.INFO)
+            vim.notify("Orc: '" .. name .. "' CLI exited (code " .. code .. ")", vim.log.levels.INFO)
           end
         end)
       end,
@@ -303,13 +303,13 @@ function M.create(name, opts)
   opts = opts or {}
 
   if M.spaces[name] then
-    vim.notify("orc: space '" .. name .. "' already exists", vim.log.levels.WARN)
+    vim.notify("Orc: space '" .. name .. "' already exists", vim.log.levels.WARN)
     return
   end
 
   local root = repo_root()
   if not root then
-    vim.notify("orc: not inside a git repository", vim.log.levels.ERROR)
+    vim.notify("Orc: not inside a git repository", vim.log.levels.ERROR)
     return
   end
 
@@ -319,40 +319,38 @@ function M.create(name, opts)
   if opts.worktree then
     worktree_path = vim.fs.normalize(opts.worktree)
     if vim.fn.isdirectory(worktree_path) ~= 1 then
-      vim.notify("orc: worktree path does not exist: " .. worktree_path, vim.log.levels.ERROR)
+      vim.notify("Orc: worktree path does not exist: " .. worktree_path, vim.log.levels.ERROR)
       return
     end
     local wt_map = existing_worktrees()
     branch = wt_map[worktree_path] or name
-
   elseif opts.branch and branch_exists(opts.branch) then
     branch = opts.branch
     worktree_path = vim.fs.normalize(root .. "/" .. config.worktree_base .. "/" .. name)
     local result = vim.fn.system({ "git", "worktree", "add", "--force", worktree_path, branch })
     if vim.v.shell_error ~= 0 then
-      vim.notify("orc: failed to create worktree: " .. result, vim.log.levels.ERROR)
+      vim.notify("Orc: failed to create worktree: " .. result, vim.log.levels.ERROR)
       return
     end
-
   else
     local base = opts.base or "HEAD"
     branch = opts.branch or name
     worktree_path = vim.fs.normalize(root .. "/" .. config.worktree_base .. "/" .. name)
     local result = vim.fn.system({ "git", "worktree", "add", "-b", branch, worktree_path, base })
     if vim.v.shell_error ~= 0 then
-      vim.notify("orc: failed to create worktree: " .. result, vim.log.levels.ERROR)
+      vim.notify("Orc: failed to create worktree: " .. result, vim.log.levels.ERROR)
       return
     end
   end
 
   if not spawn_space(name, worktree_path, branch) then
-    vim.notify("orc: failed to start terminal", vim.log.levels.ERROR)
+    vim.notify("Orc: failed to start terminal", vim.log.levels.ERROR)
     return
   end
 
   M.active_space = name
   M.save()
-  vim.notify("orc: created space '" .. name .. "'", vim.log.levels.INFO)
+  vim.notify("Orc: created space '" .. name .. "'", vim.log.levels.INFO)
 end
 
 --- Toggle visibility of a space's terminal.
@@ -364,22 +362,22 @@ function M.toggle(name)
   if name == "@main" and not M.spaces["@main"] then
     local main = M.main_worktree()
     if not main then
-      vim.notify("orc: not inside a git repository", vim.log.levels.ERROR)
+      vim.notify("Orc: not inside a git repository", vim.log.levels.ERROR)
       return
     end
     if not spawn_space("@main", main.path, main.branch) then
-      vim.notify("orc: failed to start terminal", vim.log.levels.ERROR)
+      vim.notify("Orc: failed to start terminal", vim.log.levels.ERROR)
       return
     end
   end
   if not name then
-    vim.notify("orc: no active space", vim.log.levels.WARN)
+    vim.notify("Orc: no active space", vim.log.levels.WARN)
     return
   end
 
   local space = M.spaces[name]
   if not space then
-    vim.notify("orc: space '" .. name .. "' not found", vim.log.levels.WARN)
+    vim.notify("Orc: space '" .. name .. "' not found", vim.log.levels.WARN)
     return
   end
 
@@ -408,7 +406,7 @@ function M.toggle(name)
       col = col,
       style = "minimal",
       border = "rounded",
-      title = " orc: " .. display .. " ",
+      title = " Orc: " .. display .. " ",
       title_pos = "center",
     })
   elseif config.terminal_direction == "vertical" then
@@ -430,13 +428,13 @@ end
 ---@param name string
 function M.delete(name)
   if name == "@main" then
-    vim.notify("orc: cannot delete the main worktree", vim.log.levels.WARN)
+    vim.notify("Orc: cannot delete the main worktree", vim.log.levels.WARN)
     return
   end
 
   local space = M.spaces[name]
   if not space then
-    vim.notify("orc: space '" .. name .. "' not found", vim.log.levels.WARN)
+    vim.notify("Orc: space '" .. name .. "' not found", vim.log.levels.WARN)
     return
   end
 
@@ -460,7 +458,7 @@ function M.delete(name)
   -- Remove worktree (branch is preserved for review)
   local result = vim.fn.system({ "git", "worktree", "remove", "--force", space.worktree_path })
   if vim.v.shell_error ~= 0 then
-    vim.notify("orc: worktree removal warning: " .. result, vim.log.levels.WARN)
+    vim.notify("Orc: worktree removal warning: " .. result, vim.log.levels.WARN)
   end
 
   M.spaces[name] = nil
@@ -470,7 +468,7 @@ function M.delete(name)
   end
 
   M.save()
-  vim.notify("orc: deleted space '" .. name .. "' (branch " .. space.branch .. " kept)", vim.log.levels.INFO)
+  vim.notify("Orc: deleted space '" .. name .. "' (branch " .. space.branch .. " kept)", vim.log.levels.INFO)
 end
 
 --- List all spaces (excludes @main).
@@ -495,7 +493,7 @@ end
 ---@param name string
 function M.switch(name)
   if name ~= "@main" and not M.spaces[name] then
-    vim.notify("orc: space '" .. name .. "' not found", vim.log.levels.WARN)
+    vim.notify("Orc: space '" .. name .. "' not found", vim.log.levels.WARN)
     return
   end
 
@@ -543,7 +541,7 @@ function M.switch(name)
   M.active_space = name
   vim.cmd("stopinsert")
   local display = (name == "@main") and "main" or name
-  vim.notify("orc: active space -> '" .. display .. "'", vim.log.levels.INFO)
+  vim.notify("Orc: active space -> '" .. display .. "'", vim.log.levels.INFO)
 end
 
 --- Update a space's status.

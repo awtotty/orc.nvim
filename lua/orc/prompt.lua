@@ -53,12 +53,12 @@ local function send_to_space(space_name, text)
   local space, name = orc.get(space_name)
 
   if not space then
-    vim.notify("orc: no space to send to", vim.log.levels.WARN)
+    vim.notify("Orc: no space to send to", vim.log.levels.WARN)
     return
   end
 
   if not vim.api.nvim_buf_is_valid(space.bufnr) then
-    vim.notify("orc: space '" .. name .. "' terminal is invalid", vim.log.levels.ERROR)
+    vim.notify("Orc: space '" .. name .. "' terminal is invalid", vim.log.levels.ERROR)
     return
   end
 
@@ -108,7 +108,7 @@ function M.prompt(space_name)
     col = math.floor((vim.o.columns - width) / 2),
     style = "minimal",
     border = "rounded",
-    title = " orc prompt ",
+    title = " Orc Prompt ",
     title_pos = "center",
   })
 

@@ -24,7 +24,7 @@ vim.api.nvim_create_user_command("OrcCreate", function(cmd)
   require("orc").create(name, opts)
 end, {
   nargs = "*",
-  desc = "Create a new orc space (worktree + agent). Options: --branch=<name> --worktree=<path>",
+  desc = "Create a new Orc space (worktree + agent). Options: --branch=<name> --worktree=<path>",
 })
 
 vim.api.nvim_create_user_command("OrcToggle", function(cmd)
@@ -34,13 +34,13 @@ end, {
   complete = function()
     return require("orc").names()
   end,
-  desc = "Toggle an orc space terminal",
+  desc = "Toggle an Orc space terminal",
 })
 
 vim.api.nvim_create_user_command("OrcDelete", function(cmd)
   local name = cmd.fargs[1]
   if not name or name == "" then
-    vim.notify("orc: usage: :OrcDelete <name>", vim.log.levels.WARN)
+    vim.notify("Orc: usage: :OrcDelete <name>", vim.log.levels.WARN)
     return
   end
   require("orc").delete(name)
@@ -49,13 +49,13 @@ end, {
   complete = function()
     return require("orc").names()
   end,
-  desc = "Delete an orc space",
+  desc = "Delete an Orc space",
 })
 
 vim.api.nvim_create_user_command("OrcList", function()
   require("orc").list()
 end, {
-  desc = "List all orc spaces",
+  desc = "List all Orc spaces",
 })
 
 vim.api.nvim_create_user_command("OrcPrompt", function(cmd)
@@ -66,13 +66,13 @@ end, {
   complete = function()
     return require("orc").names()
   end,
-  desc = "Send a prompt to an orc space",
+  desc = "Send a prompt to an Orc space",
 })
 
 vim.api.nvim_create_user_command("OrcSwitch", function(cmd)
   local name = cmd.fargs[1]
   if not name or name == "" then
-    vim.notify("orc: usage: :OrcSwitch <name>", vim.log.levels.WARN)
+    vim.notify("Orc: usage: :OrcSwitch <name>", vim.log.levels.WARN)
     return
   end
   require("orc").switch(name)
@@ -81,5 +81,5 @@ end, {
   complete = function()
     return require("orc").names()
   end,
-  desc = "Switch the active orc space",
+  desc = "Switch the active Orc space",
 })

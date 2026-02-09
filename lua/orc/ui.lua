@@ -57,7 +57,7 @@ end
 ---@param callback fun(item: string)
 local function float_select(title, items, callback)
   if #items == 0 then
-    vim.notify("orc: no items to select", vim.log.levels.WARN)
+    vim.notify("Orc: no items to select", vim.log.levels.WARN)
     return
   end
 
@@ -218,7 +218,7 @@ function M.list()
     col = math.floor((vim.o.columns - width) / 2),
     style = "minimal",
     border = "rounded",
-    title = " orc spaces ",
+    title = " Orc Spaces ",
     title_pos = "center",
   })
 
@@ -251,7 +251,6 @@ function M.list()
       float_input("space name", function(name)
         orc.create(name)
       end)
-
     elseif action == "branch" then
       local branches = git_branches()
       float_select("select branch", branches, function(branch_name)
@@ -260,16 +259,18 @@ function M.list()
           orc.create(name, { branch = branch_name })
         end, default_name)
       end)
-
     elseif action == "worktree" then
       local display, wt_map = git_worktrees()
       if #display == 0 then
-        vim.notify("orc: no untracked worktrees found", vim.log.levels.WARN)
+        vim.notify("Orc: no untracked worktrees found", vim.log.levels.WARN)
       else
         float_select("select worktree", display, function(item)
           local idx
           for i, d in ipairs(display) do
-            if d == item then idx = i break end
+            if d == item then
+              idx = i
+              break
+            end
           end
           if not idx or not wt_map[idx] then return end
           local wt = wt_map[idx]
@@ -279,7 +280,6 @@ function M.list()
           end, default_name)
         end)
       end
-
     elseif line_to_name[row] then
       orc.switch(line_to_name[row])
     end
