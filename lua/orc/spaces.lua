@@ -290,7 +290,7 @@ function M.create(name, opts)
   elseif opts.branch and branch_exists(opts.branch) then
     branch = opts.branch
     worktree_path = vim.fs.normalize(root .. "/" .. config.worktree_base .. "/" .. name)
-    local result = vim.fn.system({ "git", "worktree", "add", worktree_path, branch })
+    local result = vim.fn.system({ "git", "worktree", "add", "--force", worktree_path, branch })
     if vim.v.shell_error ~= 0 then
       vim.notify("orc: failed to create worktree: " .. result, vim.log.levels.ERROR)
       return
@@ -298,7 +298,7 @@ function M.create(name, opts)
 
   else
     local base = opts.base or "HEAD"
-    branch = opts.branch or ("orc/" .. name)
+    branch = opts.branch or name
     worktree_path = vim.fs.normalize(root .. "/" .. config.worktree_base .. "/" .. name)
     local result = vim.fn.system({ "git", "worktree", "add", "-b", branch, worktree_path, base })
     if vim.v.shell_error ~= 0 then

@@ -1,5 +1,160 @@
 local M = {}
 
+--- Open a small floating text input.
+---@param title string
+---@param callback fun(value: string)
+---@param default? string Value used when input is empty
+local function float_input(title, callback, default)
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_set_option_value("bufhidden", "wipe", { buf = buf })
+
+  local width = math.max(math.floor(vim.o.columns * 0.4), 30)
+  local win = vim.api.nvim_open_win(buf, true, {
+    relative = "editor",
+    width = width,
+    height = 1,
+    row = math.floor((vim.o.lines - 1) / 2),
+    col = math.floor((vim.o.columns - width) / 2),
+    style = "minimal",
+    border = "rounded",
+    title = " " .. title .. " ",
+    title_pos = "center",
+  })
+
+  vim.cmd("startinsert")
+
+  local closed = false
+  local function submit()
+    if closed then return end
+    closed = true
+    local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+    vim.api.nvim_win_close(win, true)
+    local value = vim.trim(table.concat(lines, ""))
+    if value == "" then
+      value = default
+    end
+    if value and value ~= "" then
+      callback(value)
+    end
+  end
+  local function cancel()
+    if closed then return end
+    closed = true
+    vim.api.nvim_win_close(win, true)
+  end
+
+  vim.keymap.set("i", "<CR>", submit, { buffer = buf, nowait = true })
+  vim.keymap.set("n", "<CR>", submit, { buffer = buf, nowait = true })
+  vim.keymap.set("n", "q", cancel, { buffer = buf, nowait = true })
+  vim.keymap.set("n", "<Esc>", cancel, { buffer = buf, nowait = true })
+end
+
+--- Open a floating picker list.
+---@param title string
+---@param items string[]
+---@param callback fun(item: string)
+local function float_select(title, items, callback)
+  if #items == 0 then
+    vim.notify("orc: no items to select", vim.log.levels.WARN)
+    return
+  end
+
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, items)
+  vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
+  vim.api.nvim_set_option_value("bufhidden", "wipe", { buf = buf })
+
+  local width = 0
+  for _, item in ipairs(items) do
+    width = math.max(width, vim.fn.strdisplaywidth(item))
+  end
+  width = math.max(width + 4, 30)
+  local height = math.min(#items, math.floor(vim.o.lines * 0.5))
+
+  local win = vim.api.nvim_open_win(buf, true, {
+    relative = "editor",
+    width = width,
+    height = height,
+    row = math.floor((vim.o.lines - height) / 2),
+    col = math.floor((vim.o.columns - width) / 2),
+    style = "minimal",
+    border = "rounded",
+    title = " " .. title .. " ",
+    title_pos = "center",
+  })
+  vim.api.nvim_set_option_value("cursorline", true, { win = win })
+
+  local function close()
+    if vim.api.nvim_win_is_valid(win) then
+      vim.api.nvim_win_close(win, true)
+    end
+  end
+
+  vim.keymap.set("n", "<CR>", function()
+    local row = vim.api.nvim_win_get_cursor(win)[1]
+    local item = items[row]
+    close()
+    if item then
+      callback(item)
+    end
+  end, { buffer = buf, nowait = true })
+
+  vim.keymap.set("n", "q", close, { buffer = buf, nowait = true })
+  vim.keymap.set("n", "<Esc>", close, { buffer = buf, nowait = true })
+  vim.api.nvim_create_autocmd("BufLeave", { buffer = buf, once = true, callback = close })
+end
+
+--- Get local git branches (excluding current).
+---@return string[]
+local function git_branches()
+  local out = vim.fn.systemlist({ "git", "branch", "--format=%(refname:short)" })
+  if vim.v.shell_error ~= 0 then
+    return {}
+  end
+  return out
+end
+
+--- Get existing git worktrees as display strings.
+---@return string[] display, table<number, {path: string, branch: string}> map
+local function git_worktrees()
+  local out = vim.fn.systemlist({ "git", "worktree", "list", "--porcelain" })
+  local results = {}
+  local current_path = nil
+  for _, line in ipairs(out) do
+    local path = line:match("^worktree (.+)$")
+    if path then
+      current_path = path
+    end
+    local branch_ref = line:match("^branch (.+)$")
+    if branch_ref and current_path then
+      table.insert(results, { path = current_path, branch = branch_ref:gsub("^refs/heads/", "") })
+      current_path = nil
+    end
+  end
+
+  -- Filter out worktrees already tracked as spaces
+  local orc = require("orc")
+  local existing = orc.spaces()
+  local tracked_paths = {}
+  for _, space in pairs(existing) do
+    tracked_paths[space.worktree_path] = true
+  end
+  local main = orc.main_worktree()
+  if main then
+    tracked_paths[main.path] = true
+  end
+
+  local display = {}
+  local map = {}
+  for _, wt in ipairs(results) do
+    if not tracked_paths[wt.path] then
+      table.insert(display, wt.branch .. "  " .. wt.path)
+      map[#display] = wt
+    end
+  end
+  return display, map
+end
+
 --- Open the spaces list in a floating buffer.
 function M.list()
   local orc = require("orc")
@@ -91,30 +246,37 @@ function M.list()
     close()
 
     if action == "new" then
-      vim.ui.input({ prompt = "Space name: " }, function(name)
-        if name and name ~= "" then
-          orc.create(name)
-        end
+      float_input("space name", function(name)
+        orc.create(name)
       end)
 
     elseif action == "branch" then
-      vim.ui.input({ prompt = "Branch: " }, function(branch_name)
-        if not branch_name or branch_name == "" then return end
-        vim.ui.input({ prompt = "Space name (default: " .. branch_name:gsub("/", "-") .. "): " }, function(name)
-          name = (name and name ~= "") and name or branch_name:gsub("/", "-")
+      local branches = git_branches()
+      float_select("select branch", branches, function(branch_name)
+        local default_name = branch_name:gsub("/", "-")
+        float_input("space name [" .. default_name .. "]", function(name)
           orc.create(name, { branch = branch_name })
-        end)
+        end, default_name)
       end)
 
     elseif action == "worktree" then
-      vim.ui.input({ prompt = "Worktree path: " }, function(path)
-        if not path or path == "" then return end
-        vim.ui.input({ prompt = "Space name: " }, function(name)
-          if name and name ~= "" then
-            orc.create(name, { worktree = path })
+      local display, wt_map = git_worktrees()
+      if #display == 0 then
+        vim.notify("orc: no untracked worktrees found", vim.log.levels.WARN)
+      else
+        float_select("select worktree", display, function(item)
+          local idx
+          for i, d in ipairs(display) do
+            if d == item then idx = i break end
           end
+          if not idx or not wt_map[idx] then return end
+          local wt = wt_map[idx]
+          local default_name = wt.branch:gsub("/", "-")
+          float_input("space name [" .. default_name .. "]", function(name)
+            orc.create(name, { worktree = wt.path })
+          end, default_name)
         end)
-      end)
+      end
 
     elseif line_to_name[row] then
       orc.switch(line_to_name[row])
@@ -129,8 +291,8 @@ function M.list()
       return
     end
     close()
-    vim.ui.input({ prompt = "Delete space '" .. name .. "'? (y/N): " }, function(input)
-      if input and input:lower() == "y" then
+    float_select("delete '" .. name .. "'?", { "no", "yes" }, function(choice)
+      if choice == "yes" then
         orc.delete(name)
       end
     end)
