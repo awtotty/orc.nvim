@@ -74,6 +74,8 @@ local function process_signal(name, path)
         local orc = require("orc")
         if signal_type == "DONE" then
           orc.set_status(name, "ready")
+        elseif signal_type == "READY" then
+          orc.set_status(name, "active")
         elseif signal_type == "QUESTION" or signal_type == "BLOCKED" then
           orc.set_status(name, "needs_attention")
         end

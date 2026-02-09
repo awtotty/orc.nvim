@@ -57,8 +57,6 @@ local function send_to_space(space_name, text)
     return
   end
 
-  orc.set_status(name, "ready")
-
   -- Open and focus the terminal (toggle handles respawning exited spaces)
   if not (space.win and vim.api.nvim_win_is_valid(space.win)) then
     orc.toggle(name)

@@ -5,7 +5,7 @@ local M = {}
 ---@field chan number Terminal channel ID
 ---@field worktree_path string Absolute path to the worktree
 ---@field branch string Branch name
----@field status string "ready"|"needs_attention"|"exited"
+---@field status string "active"|"ready"|"needs_attention"|"exited"
 ---@field win number|nil Window ID if currently visible
 
 ---@type table<string, OrcSpace>
@@ -128,9 +128,19 @@ local function spawn_space(name, worktree_path, branch)
           }
         ]
       }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"READY: Agent resumed\" >> \"%s\""
+          }
+        ]
+      }
     ]
   }
-}]], sig, sig, sig)
+}]], sig, sig, sig, sig)
       local hf = io.open(hooks_settings, "w")
       if hf then
         hf:write(hooks_json)
@@ -167,7 +177,7 @@ local function spawn_space(name, worktree_path, branch)
     chan = chan,
     worktree_path = worktree_path,
     branch = branch,
-    status = "ready",
+    status = "active",
     win = nil,
   }
 
@@ -439,6 +449,9 @@ function M.toggle(name)
   end
 
   space.win = win
+  if space.status == "needs_attention" then
+    space.status = "active"
+  end
   vim.cmd("startinsert")
 end
 
