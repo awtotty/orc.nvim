@@ -68,11 +68,36 @@ local function spawn_space(name, worktree_path, branch)
   local config = get_config()
   local signal_path = worktree_path .. "/" .. config.signal_file
 
-  -- Write shared instructions in the worktree base (gitignored, skip for @main)
+  -- Skip setup for @main (user's own repo)
   if name ~= "@main" then
     local root = repo_root()
     if root then
       ensure_signal_instructions(root .. "/" .. config.worktree_base)
+
+      -- Symlink all .claude files from root so spaces inherit settings, MCPs, etc.
+      local claude_dir = worktree_path .. "/.claude"
+      vim.fn.mkdir(claude_dir, "p")
+      local root_claude_dir = root .. "/.claude"
+      local handle = vim.uv.fs_scandir(root_claude_dir)
+      if handle then
+        while true do
+          local entry, typ = vim.uv.fs_scandir_next(handle)
+          if not entry then break end
+          if typ == "file" then
+            local dst = claude_dir .. "/" .. entry
+            if vim.fn.filereadable(dst) == 0 and not vim.uv.fs_lstat(dst) then
+              vim.uv.fs_symlink(root_claude_dir .. "/" .. entry, dst)
+            end
+          end
+        end
+      end
+
+      -- Symlink root CLAUDE.md
+      local root_claude = root .. "/CLAUDE.md"
+      local dst_claude = worktree_path .. "/CLAUDE.md"
+      if vim.fn.filereadable(root_claude) == 1 and vim.fn.filereadable(dst_claude) == 0 then
+        vim.uv.fs_symlink(root_claude, dst_claude)
+      end
     end
   end
 
