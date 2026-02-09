@@ -98,6 +98,44 @@ local function spawn_space(name, worktree_path, branch)
       if vim.fn.filereadable(root_claude) == 1 and vim.fn.filereadable(dst_claude) == 0 then
         vim.uv.fs_symlink(root_claude, dst_claude)
       end
+
+      -- Write hooks config so signals fire automatically
+      local hooks_settings = claude_dir .. "/settings.local.json"
+      local sig = signal_path:gsub('"', '\\"')
+      local hooks_json = string.format([[{
+  "permissions": {
+    "allow": [
+      "Bash(echo * >> \"%s\")"
+    ]
+  },
+  "hooks": {
+    "Notification": [
+      {
+        "matcher": "idle_prompt",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"QUESTION: Agent is waiting for input\" >> \"%s\""
+          }
+        ]
+      },
+      {
+        "matcher": "permission_prompt",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"BLOCKED: Agent needs tool permission\" >> \"%s\""
+          }
+        ]
+      }
+    ]
+  }
+}]], sig, sig, sig)
+      local hf = io.open(hooks_settings, "w")
+      if hf then
+        hf:write(hooks_json)
+        hf:close()
+      end
     end
   end
 
