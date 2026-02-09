@@ -428,7 +428,7 @@ function M.delete(name)
   M.spaces[name] = nil
 
   if M.active_space == name then
-    M.active_space = next(M.spaces)
+    M.switch("@main")
   end
 
   M.save()
