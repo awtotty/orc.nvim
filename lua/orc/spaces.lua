@@ -26,6 +26,39 @@ local function repo_root()
   return out[1]
 end
 
+--- Ensure the shared CLAUDE.md exists in the worktree base directory.
+--- Claude Code walks parent directories, so all worktrees inherit it.
+---@param base_dir string The .orc-spaces directory
+local function ensure_signal_instructions(base_dir)
+  vim.fn.mkdir(base_dir, "p")
+  local claude_md = base_dir .. "/CLAUDE.md"
+
+  -- Overwrite each time so instruction updates take effect
+  local f
+
+  f = io.open(claude_md, "w")
+  if f then
+    f:write([[# Orc Signal Protocol
+
+You are running in an orc space. The user cannot see your output unless they open your terminal. You MUST signal the editor so the user knows when you need them.
+
+Signal by appending to `$ORC_SIGNAL_FILE`:
+
+```
+echo "TYPE: message" >> "$ORC_SIGNAL_FILE"
+```
+
+IMPORTANT: Always signal BEFORE stopping or waiting. The user will not see your question otherwise.
+
+- BEFORE asking the user anything: `echo "QUESTION: <your question>" >> "$ORC_SIGNAL_FILE"`
+- BEFORE stopping when blocked: `echo "BLOCKED: <reason>" >> "$ORC_SIGNAL_FILE"`
+- AFTER completing a task: `echo "DONE: <summary>" >> "$ORC_SIGNAL_FILE"`
+- On errors you cannot recover from: `echo "ERROR: <message>" >> "$ORC_SIGNAL_FILE"`
+]])
+    f:close()
+  end
+end
+
 --- Spawn a hidden terminal in a worktree and register it as a space.
 ---@param name string
 ---@param worktree_path string
@@ -33,6 +66,15 @@ end
 ---@return boolean success
 local function spawn_space(name, worktree_path, branch)
   local config = get_config()
+  local signal_path = worktree_path .. "/" .. config.signal_file
+
+  -- Write shared instructions in the worktree base (gitignored, skip for @main)
+  if name ~= "@main" then
+    local root = repo_root()
+    if root then
+      ensure_signal_instructions(root .. "/" .. config.worktree_base)
+    end
+  end
 
   local bufnr = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_set_option_value("bufhidden", "hide", { buf = bufnr })
@@ -40,6 +82,7 @@ local function spawn_space(name, worktree_path, branch)
   local chan = vim.api.nvim_buf_call(bufnr, function()
     return vim.fn.termopen(config.cli, {
       cwd = worktree_path,
+      env = { ORC_SIGNAL_FILE = signal_path },
       on_exit = function(_, code)
         vim.schedule(function()
           if M.spaces[name] then
