@@ -81,18 +81,16 @@ end
 --- Optionally includes visual selection as context.
 ---@param space_name? string
 function M.prompt(space_name)
-  -- Exit visual mode first so '< and '> marks are up to date
+  -- Capture visual selection only when called from visual mode
+  local context = nil
   local mode = vim.fn.mode()
   if mode == "v" or mode == "V" or mode == "\22" then
     local esc = vim.api.nvim_replace_termcodes("<Esc>", true, false, true)
     vim.api.nvim_feedkeys(esc, "nx", false)
-  end
-
-  -- Capture visual selection before opening the float
-  local context = nil
-  local sel_lines, filename, start_line, end_line = get_visual_selection()
-  if sel_lines and #sel_lines > 0 then
-    context = format_context(sel_lines, filename, start_line, end_line)
+    local sel_lines, filename, start_line, end_line = get_visual_selection()
+    if sel_lines and #sel_lines > 0 then
+      context = format_context(sel_lines, filename, start_line, end_line)
+    end
   end
 
   local buf = vim.api.nvim_create_buf(false, true)
