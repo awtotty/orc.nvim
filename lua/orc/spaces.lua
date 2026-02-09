@@ -249,6 +249,8 @@ end
 --- Toggle visibility of a space's terminal.
 ---@param name? string Defaults to active space. Use "@main" for the main worktree.
 function M.toggle(name)
+  name = name or M.active_space
+
   -- Lazily create a terminal for the main worktree
   if name == "@main" and not M.spaces["@main"] then
     local main = M.main_worktree()
@@ -261,8 +263,6 @@ function M.toggle(name)
       return
     end
   end
-
-  name = name or M.active_space
   if not name then
     vim.notify("orc: no active space", vim.log.levels.WARN)
     return
@@ -382,13 +382,55 @@ function M.get_active()
   return M.active_space
 end
 
---- Switch the active space.
+--- Switch the active space and open the current file in that worktree.
 ---@param name string
 function M.switch(name)
   if name ~= "@main" and not M.spaces[name] then
     vim.notify("orc: space '" .. name .. "' not found", vim.log.levels.WARN)
     return
   end
+
+  -- Resolve target worktree path
+  local target_root
+  if name == "@main" then
+    local main = M.main_worktree()
+    target_root = main and main.path
+  else
+    target_root = M.spaces[name].worktree_path
+  end
+
+  -- Try to open the current file in the target worktree
+  local current = vim.api.nvim_buf_get_name(0)
+  if target_root and current ~= "" then
+    local root = repo_root()
+    if root then
+      -- Find relative path: check space worktrees first (more specific),
+      -- then fall back to main root
+      local rel = nil
+      for _, space in pairs(M.spaces) do
+        local wp = space.worktree_path
+        if current:sub(1, #wp + 1) == wp .. "/" then
+          rel = current:sub(#wp + 2)
+          break
+        end
+      end
+      if not rel and current:sub(1, #root + 1) == root .. "/" then
+        rel = current:sub(#root + 2)
+      end
+
+      if rel then
+        local target_file = target_root .. "/" .. rel
+        if vim.fn.filereadable(target_file) == 1 then
+          vim.cmd("edit " .. vim.fn.fnameescape(target_file))
+        else
+          vim.cmd("enew")
+        end
+      else
+        vim.cmd("enew")
+      end
+    end
+  end
+
   M.active_space = name
   local display = (name == "@main") and "main" or name
   vim.notify("orc: active space -> '" .. display .. "'", vim.log.levels.INFO)
