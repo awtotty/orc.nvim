@@ -381,6 +381,18 @@ function M.toggle(name)
     return
   end
 
+  -- Respawn CLI if it exited
+  if space.status == "exited" then
+    if vim.api.nvim_buf_is_valid(space.bufnr) then
+      vim.api.nvim_buf_delete(space.bufnr, { force = true })
+    end
+    if not spawn_space(name, space.worktree_path, space.branch) then
+      vim.notify("Orc: failed to restart terminal", vim.log.levels.ERROR)
+      return
+    end
+    space = M.spaces[name]
+  end
+
   -- If visible, close it
   if space.win and vim.api.nvim_win_is_valid(space.win) then
     vim.api.nvim_win_close(space.win, true)

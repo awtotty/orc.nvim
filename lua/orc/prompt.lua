@@ -57,16 +57,13 @@ local function send_to_space(space_name, text)
     return
   end
 
-  if not vim.api.nvim_buf_is_valid(space.bufnr) then
-    vim.notify("Orc: space '" .. name .. "' terminal is invalid", vim.log.levels.ERROR)
-    return
-  end
-
   orc.set_status(name, "ready")
 
-  -- Open and focus the terminal
+  -- Open and focus the terminal (toggle handles respawning exited spaces)
   if not (space.win and vim.api.nvim_win_is_valid(space.win)) then
     orc.toggle(name)
+    space = orc.get(name)
+    if not space then return end
   else
     vim.api.nvim_set_current_win(space.win)
     vim.cmd("startinsert")
