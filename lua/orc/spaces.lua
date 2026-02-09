@@ -112,9 +112,11 @@ local function spawn_space(name, worktree_path, branch)
     M.active_space = name
   end
 
-  local ok, signal = pcall(require, "orc.signal")
-  if ok then
-    signal.watch(name, worktree_path)
+  if name ~= "@main" then
+    local ok, signal = pcall(require, "orc.signal")
+    if ok then
+      signal.watch(name, worktree_path)
+    end
   end
 
   return true
@@ -292,7 +294,7 @@ end
 --- Toggle visibility of a space's terminal.
 ---@param name? string Defaults to active space. Use "@main" for the main worktree.
 function M.toggle(name)
-  name = name or M.active_space
+  name = name or M.active_space or "@main"
 
   -- Lazily create a terminal for the main worktree
   if name == "@main" and not M.spaces["@main"] then
