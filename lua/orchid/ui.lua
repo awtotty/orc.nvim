@@ -58,7 +58,7 @@ end
 ---@param callback fun(item: string)
 function M.float_select(title, items, callback)
   if #items == 0 then
-    vim.notify("Orc: no items to select", vim.log.levels.WARN)
+    vim.notify("Orchid: no items to select", vim.log.levels.WARN)
     return
   end
 
@@ -135,14 +135,14 @@ local function git_worktrees()
     end
   end
 
-  -- Filter out worktrees already tracked as spaces
-  local orc = require("orc")
-  local existing = orc.spaces()
+  -- Filter out worktrees already tracked as rooms
+  local orchid = require("orchid")
+  local existing = orchid.rooms()
   local tracked_paths = {}
-  for _, space in pairs(existing) do
-    tracked_paths[space.worktree_path] = true
+  for _, room in pairs(existing) do
+    tracked_paths[room.worktree_path] = true
   end
-  local main = orc.main_worktree()
+  local main = orchid.main_worktree()
   if main then
     tracked_paths[main.path] = true
   end
@@ -158,17 +158,17 @@ local function git_worktrees()
   return display, map
 end
 
---- Open the spaces list in a floating buffer.
+--- Open the rooms list in a floating buffer.
 function M.list()
-  local orc = require("orc")
-  local entries = orc.spaces()
-  local active = orc.get_active()
+  local orchid = require("orchid")
+  local entries = orchid.rooms()
+  local active = orchid.get_active()
 
   local lines = {}
   local line_to_name = {}
 
   -- Main worktree always listed first
-  local main = orc.main_worktree()
+  local main = orchid.main_worktree()
   if main then
     local marker = (active == "@main" or active == nil) and " ● " or "   "
     table.insert(lines, marker .. "main  " .. main.branch .. "  " .. main.path)
@@ -182,15 +182,15 @@ function M.list()
   table.sort(sorted)
 
   for _, name in ipairs(sorted) do
-    local space = entries[name]
+    local room = entries[name]
     local marker = (name == active) and " ● " or "   "
-    table.insert(lines, marker .. name .. "  [" .. space.status .. "]  " .. space.branch)
+    table.insert(lines, marker .. name .. "  [" .. room.status .. "]  " .. room.branch)
     line_to_name[#lines] = name
   end
 
   -- Action lines
   local actions = {}
-  table.insert(lines, "   + new space      (n)")
+  table.insert(lines, "   + new room       (n)")
   actions[#lines] = "new"
   table.insert(lines, "   + from branch    (b)")
   actions[#lines] = "branch"
@@ -219,13 +219,13 @@ function M.list()
     col = math.floor((vim.o.columns - width) / 2),
     style = "minimal",
     border = "rounded",
-    title = " Orc Spaces ",
+    title = " Orchid Rooms ",
     title_pos = "center",
   })
 
   vim.api.nvim_set_option_value("cursorline", true, { win = win })
 
-  -- Place cursor on the first space line (find minimum key)
+  -- Place cursor on the first room line (find minimum key)
   local first_line = nil
   for k in pairs(line_to_name) do
     if not first_line or k < first_line then
@@ -242,28 +242,28 @@ function M.list()
     end
   end
 
-  -- <CR>: switch to space or run create action
+  -- <CR>: switch to room or run create action
   vim.keymap.set("n", "<CR>", function()
     local row = vim.api.nvim_win_get_cursor(win)[1]
     local action = actions[row]
     close()
 
     if action == "new" then
-      float_input("space name", function(name)
-        orc.create(name)
+      float_input("room name", function(name)
+        orchid.create(name)
       end)
     elseif action == "branch" then
       local branches = git_branches()
       M.float_select("select branch", branches, function(branch_name)
         local default_name = branch_name:gsub("/", "-")
-        float_input("space name [" .. default_name .. "]", function(name)
-          orc.create(name, { branch = branch_name })
+        float_input("room name [" .. default_name .. "]", function(name)
+          orchid.create(name, { branch = branch_name })
         end, default_name)
       end)
     elseif action == "worktree" then
       local display, wt_map = git_worktrees()
       if #display == 0 then
-        vim.notify("Orc: no untracked worktrees found", vim.log.levels.WARN)
+        vim.notify("Orchid: no untracked worktrees found", vim.log.levels.WARN)
       else
         M.float_select("select worktree", display, function(item)
           local idx
@@ -276,17 +276,17 @@ function M.list()
           if not idx or not wt_map[idx] then return end
           local wt = wt_map[idx]
           local default_name = wt.branch:gsub("/", "-")
-          float_input("space name [" .. default_name .. "]", function(name)
-            orc.create(name, { worktree = wt.path })
+          float_input("room name [" .. default_name .. "]", function(name)
+            orchid.create(name, { worktree = wt.path })
           end, default_name)
         end)
       end
     elseif line_to_name[row] then
-      orc.switch(line_to_name[row])
+      orchid.switch(line_to_name[row])
     end
   end, { buffer = buf, nowait = true })
 
-  -- d: delete space with confirmation (not on main)
+  -- d: delete room with confirmation (not on main)
   vim.keymap.set("n", "d", function()
     local row = vim.api.nvim_win_get_cursor(win)[1]
     local name = line_to_name[row]
@@ -296,26 +296,26 @@ function M.list()
     close()
     M.float_select("delete '" .. name .. "'?", { "no", "yes" }, function(choice)
       if choice == "yes" then
-        local spaces = require("orc.spaces")
-        local space = spaces.spaces[name]
-        if space and spaces.has_uncommitted_changes(space.worktree_path) then
+        local rooms = require("orchid.rooms")
+        local room = rooms.rooms[name]
+        if room and rooms.has_uncommitted_changes(room.worktree_path) then
           M.float_select("'" .. name .. "' has uncommitted changes. delete?", { "no", "yes" }, function(choice2)
             if choice2 == "yes" then
-              orc.delete(name, { force = true })
+              orchid.delete(name, { force = true })
             end
           end)
         else
-          orc.delete(name, { force = true })
+          orchid.delete(name, { force = true })
         end
       end
     end)
   end, { buffer = buf, nowait = true })
 
-  -- n: new space shortcut
+  -- n: new room shortcut
   vim.keymap.set("n", "n", function()
     close()
-    float_input("space name", function(name)
-      orc.create(name)
+    float_input("room name", function(name)
+      orchid.create(name)
     end)
   end, { buffer = buf, nowait = true })
 
@@ -325,8 +325,8 @@ function M.list()
     local branches = git_branches()
     M.float_select("select branch", branches, function(branch_name)
       local default_name = branch_name:gsub("/", "-")
-      float_input("space name [" .. default_name .. "]", function(name)
-        orc.create(name, { branch = branch_name })
+      float_input("room name [" .. default_name .. "]", function(name)
+        orchid.create(name, { branch = branch_name })
       end, default_name)
     end)
   end, { buffer = buf, nowait = true })
@@ -336,7 +336,7 @@ function M.list()
     close()
     local display, wt_map = git_worktrees()
     if #display == 0 then
-      vim.notify("Orc: no untracked worktrees found", vim.log.levels.WARN)
+      vim.notify("Orchid: no untracked worktrees found", vim.log.levels.WARN)
     else
       M.float_select("select worktree", display, function(item)
         local idx
@@ -349,8 +349,8 @@ function M.list()
         if not idx or not wt_map[idx] then return end
         local wt = wt_map[idx]
         local default_name = wt.branch:gsub("/", "-")
-        float_input("space name [" .. default_name .. "]", function(name)
-          orc.create(name, { worktree = wt.path })
+        float_input("room name [" .. default_name .. "]", function(name)
+          orchid.create(name, { worktree = wt.path })
         end, default_name)
       end)
     end

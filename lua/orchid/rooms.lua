@@ -1,6 +1,6 @@
 local M = {}
 
----@class OrcSpace
+---@class OrchidRoom
 ---@field bufnr number Terminal buffer number
 ---@field chan number Terminal channel ID
 ---@field worktree_path string Absolute path to the worktree
@@ -9,17 +9,17 @@ local M = {}
 ---@field win number|nil Window ID if currently visible
 ---@field last_file string|nil
 
----@type table<string, OrcSpace>
-M.spaces = {}
+---@type table<string, OrchidRoom>
+M.rooms = {}
 
 ---@type string|nil
-M.active_space = nil
+M.active_room = nil
 
 ---@type string|nil  -- last_file for @main when it hasn't been spawned yet
 M._main_last_file = nil
 
 local function get_config()
-  return require("orc").config
+  return require("orchid").config
 end
 
 local function repo_root()
@@ -32,7 +32,7 @@ end
 
 --- Ensure the shared CLAUDE.md exists in the worktree base directory.
 --- Claude Code walks parent directories, so all worktrees inherit it.
----@param base_dir string The .orc directory
+---@param base_dir string The .orchid directory
 local function ensure_signal_instructions(base_dir)
   vim.fn.mkdir(base_dir, "p")
   local claude_md = base_dir .. "/CLAUDE.md"
@@ -42,33 +42,33 @@ local function ensure_signal_instructions(base_dir)
 
   f = io.open(claude_md, "w")
   if f then
-    f:write([[# Orc Signal Protocol
+    f:write([[# Orchid Signal Protocol
 
-You are running in an Orc space. The user cannot see your output unless they open your terminal. You MUST signal the editor so the user knows when you need them.
+You are running in an Orchid room. The user cannot see your output unless they open your terminal. You MUST signal the editor so the user knows when you need them.
 
-Signal by appending to `$ORC_SIGNAL_FILE`:
+Signal by appending to `$ORCHID_SIGNAL_FILE`:
 
 ```
-echo "TYPE: message" >> "$ORC_SIGNAL_FILE"
+echo "TYPE: message" >> "$ORCHID_SIGNAL_FILE"
 ```
 
 IMPORTANT: Always signal BEFORE stopping or waiting. The user will not see your question otherwise.
 
-- BEFORE asking the user anything: `echo "QUESTION: <your question>" >> "$ORC_SIGNAL_FILE"`
-- BEFORE stopping when blocked: `echo "BLOCKED: <reason>" >> "$ORC_SIGNAL_FILE"`
-- AFTER completing a task: `echo "DONE: <summary>" >> "$ORC_SIGNAL_FILE"`
-- On errors you cannot recover from: `echo "ERROR: <message>" >> "$ORC_SIGNAL_FILE"`
+- BEFORE asking the user anything: `echo "QUESTION: <your question>" >> "$ORCHID_SIGNAL_FILE"`
+- BEFORE stopping when blocked: `echo "BLOCKED: <reason>" >> "$ORCHID_SIGNAL_FILE"`
+- AFTER completing a task: `echo "DONE: <summary>" >> "$ORCHID_SIGNAL_FILE"`
+- On errors you cannot recover from: `echo "ERROR: <message>" >> "$ORCHID_SIGNAL_FILE"`
 ]])
     f:close()
   end
 end
 
---- Spawn a hidden terminal in a worktree and register it as a space.
+--- Spawn a hidden terminal in a worktree and register it as a room.
 ---@param name string
 ---@param worktree_path string
 ---@param branch string
 ---@return boolean success
-local function spawn_space(name, worktree_path, branch)
+local function spawn_room(name, worktree_path, branch)
   local config = get_config()
   local signal_path = worktree_path .. "/" .. config.signal_file
 
@@ -78,7 +78,7 @@ local function spawn_space(name, worktree_path, branch)
     if root then
       ensure_signal_instructions(root .. "/" .. config.worktree_base)
 
-      -- Symlink all .claude files from root so spaces inherit settings, MCPs, etc.
+      -- Symlink all .claude files from root so rooms inherit settings, MCPs, etc.
       local claude_dir = worktree_path .. "/.claude"
       vim.fn.mkdir(claude_dir, "p")
       local root_claude_dir = root .. "/.claude"
@@ -103,7 +103,7 @@ local function spawn_space(name, worktree_path, branch)
         vim.uv.fs_symlink(root_claude, dst_claude)
       end
 
-      -- Build space settings: merge root permissions + signal permission + hooks
+      -- Build room settings: merge root permissions + signal permission + hooks
       local hooks_settings = claude_dir .. "/settings.local.json"
       local sig = signal_path:gsub('"', '\\"')
 
@@ -174,12 +174,12 @@ local function spawn_space(name, worktree_path, branch)
   local chan = vim.api.nvim_buf_call(bufnr, function()
     return vim.fn.termopen(config.cli, {
       cwd = worktree_path,
-      env = { ORC_SIGNAL_FILE = signal_path },
+      env = { ORCHID_SIGNAL_FILE = signal_path },
       on_exit = function(_, code)
         vim.schedule(function()
-          if M.spaces[name] then
-            M.spaces[name].status = "exited"
-            vim.notify("Orc: '" .. name .. "' CLI exited (code " .. code .. ")", vim.log.levels.INFO)
+          if M.rooms[name] then
+            M.rooms[name].status = "exited"
+            vim.notify("Orchid: '" .. name .. "' CLI exited (code " .. code .. ")", vim.log.levels.INFO)
           end
         end)
       end,
@@ -191,7 +191,7 @@ local function spawn_space(name, worktree_path, branch)
     return false
   end
 
-  M.spaces[name] = {
+  M.rooms[name] = {
     bufnr = bufnr,
     chan = chan,
     worktree_path = worktree_path,
@@ -201,7 +201,7 @@ local function spawn_space(name, worktree_path, branch)
     last_file = (name == "@main") and M._main_last_file or nil,
   }
 
-  -- Cycle-space keymaps on the terminal buffer
+  -- Cycle-room keymaps on the terminal buffer
   vim.api.nvim_buf_set_keymap(bufnr, "n", "<C-k>", "", {
     callback = function() M.cycle(-1) end,
     noremap = true,
@@ -213,12 +213,12 @@ local function spawn_space(name, worktree_path, branch)
     silent = true,
   })
 
-  if not M.active_space then
-    M.active_space = name
+  if not M.active_room then
+    M.active_room = name
   end
 
   if name ~= "@main" then
-    local ok, signal = pcall(require, "orc.signal")
+    local ok, signal = pcall(require, "orchid.signal")
     if ok then
       signal.watch(name, worktree_path)
     end
@@ -261,30 +261,30 @@ local function state_path()
   if not root then
     return nil
   end
-  local dir = vim.fn.stdpath("data") .. "/orc"
+  local dir = vim.fn.stdpath("data") .. "/orchid"
   vim.fn.mkdir(dir, "p")
   local hash = vim.fn.sha256(root):sub(1, 12)
   return dir .. "/" .. hash .. ".json"
 end
 
---- Save space metadata to disk. Excludes @main (lazily created).
+--- Save room metadata to disk. Excludes @main (lazily created).
 function M.save()
   local path = state_path()
   if not path then
     return
   end
 
-  local data = { _active = M.active_space, _main_last_file = M._main_last_file }
-  for name, space in pairs(M.spaces) do
+  local data = { _active = M.active_room, _main_last_file = M._main_last_file }
+  for name, room in pairs(M.rooms) do
     if name == "@main" then
-      if space.last_file then
-        data._main_last_file = space.last_file
+      if room.last_file then
+        data._main_last_file = room.last_file
       end
     else
       data[name] = {
-        worktree_path = space.worktree_path,
-        branch = space.branch,
-        last_file = space.last_file,
+        worktree_path = room.worktree_path,
+        branch = room.branch,
+        last_file = room.last_file,
       }
     end
   end
@@ -297,7 +297,7 @@ function M.save()
   end
 end
 
---- Restore spaces from disk, re-creating terminal buffers.
+--- Restore rooms from disk, re-creating terminal buffers.
 function M.restore()
   local path = state_path()
   if not path then
@@ -327,23 +327,23 @@ function M.restore()
   data._main_last_file = nil
 
   for name, info in pairs(data) do
-    if type(info) == "table" and info.worktree_path and not M.spaces[name] and vim.fn.isdirectory(info.worktree_path) == 1 then
-      spawn_space(name, info.worktree_path, info.branch)
-      if M.spaces[name] and info.last_file then
-        M.spaces[name].last_file = info.last_file
+    if type(info) == "table" and info.worktree_path and not M.rooms[name] and vim.fn.isdirectory(info.worktree_path) == 1 then
+      spawn_room(name, info.worktree_path, info.branch)
+      if M.rooms[name] and info.last_file then
+        M.rooms[name].last_file = info.last_file
       end
     end
   end
 
   if main_last_file then
     M._main_last_file = main_last_file
-    if M.spaces["@main"] then
-      M.spaces["@main"].last_file = main_last_file
+    if M.rooms["@main"] then
+      M.rooms["@main"].last_file = main_last_file
     end
   end
 
   if saved_active then
-    M.active_space = saved_active
+    M.active_room = saved_active
   end
 end
 
@@ -361,21 +361,21 @@ function M.main_worktree()
   }
 end
 
---- Create a new space.
+--- Create a new room.
 --- Supports: new branch, existing branch, or existing worktree.
 ---@param name string
 ---@param opts? {base?: string, branch?: string, worktree?: string}
 function M.create(name, opts)
   opts = opts or {}
 
-  if M.spaces[name] then
-    vim.notify("Orc: space '" .. name .. "' already exists", vim.log.levels.WARN)
+  if M.rooms[name] then
+    vim.notify("Orchid: room '" .. name .. "' already exists", vim.log.levels.WARN)
     return
   end
 
   local root = repo_root()
   if not root then
-    vim.notify("Orc: not inside a git repository", vim.log.levels.ERROR)
+    vim.notify("Orchid: not inside a git repository", vim.log.levels.ERROR)
     return
   end
 
@@ -385,7 +385,7 @@ function M.create(name, opts)
   if opts.worktree then
     worktree_path = vim.fs.normalize(opts.worktree)
     if vim.fn.isdirectory(worktree_path) ~= 1 then
-      vim.notify("Orc: worktree path does not exist: " .. worktree_path, vim.log.levels.ERROR)
+      vim.notify("Orchid: worktree path does not exist: " .. worktree_path, vim.log.levels.ERROR)
       return
     end
     local wt_map = existing_worktrees()
@@ -395,7 +395,7 @@ function M.create(name, opts)
     worktree_path = vim.fs.normalize(root .. "/" .. config.worktree_base .. "/" .. name)
     local result = vim.fn.system({ "git", "worktree", "add", "--force", worktree_path, branch })
     if vim.v.shell_error ~= 0 then
-      vim.notify("Orc: failed to create worktree: " .. result, vim.log.levels.ERROR)
+      vim.notify("Orchid: failed to create worktree: " .. result, vim.log.levels.ERROR)
       return
     end
   else
@@ -404,71 +404,71 @@ function M.create(name, opts)
     worktree_path = vim.fs.normalize(root .. "/" .. config.worktree_base .. "/" .. name)
     local result = vim.fn.system({ "git", "worktree", "add", "-b", branch, worktree_path, base })
     if vim.v.shell_error ~= 0 then
-      vim.notify("Orc: failed to create worktree: " .. result, vim.log.levels.ERROR)
+      vim.notify("Orchid: failed to create worktree: " .. result, vim.log.levels.ERROR)
       return
     end
   end
 
-  if not spawn_space(name, worktree_path, branch) then
-    vim.notify("Orc: failed to start terminal", vim.log.levels.ERROR)
+  if not spawn_room(name, worktree_path, branch) then
+    vim.notify("Orchid: failed to start terminal", vim.log.levels.ERROR)
     return
   end
 
-  vim.notify("Orc: created space '" .. name .. "'", vim.log.levels.INFO)
+  vim.notify("Orchid: created room '" .. name .. "'", vim.log.levels.INFO)
   M.switch(name)
 end
 
---- Toggle visibility of a space's terminal.
----@param name? string Defaults to active space. Use "@main" for the main worktree.
+--- Toggle visibility of a room's terminal.
+---@param name? string Defaults to active room. Use "@main" for the main worktree.
 function M.toggle(name)
   -- Prevent individual toggles from breaking grid layout
-  local ok, grid = pcall(require, "orc.grid")
+  local ok, grid = pcall(require, "orchid.grid")
   if ok and grid.is_active() then
-    vim.notify("Orc: close grid first (<leader>og) before toggling individual spaces", vim.log.levels.WARN)
+    vim.notify("Orchid: close grid first (<leader>og) before toggling individual rooms", vim.log.levels.WARN)
     return
   end
 
-  name = name or M.active_space or "@main"
+  name = name or M.active_room or "@main"
 
   -- Lazily create a terminal for the main worktree
-  if name == "@main" and not M.spaces["@main"] then
+  if name == "@main" and not M.rooms["@main"] then
     local main = M.main_worktree()
     if not main then
-      vim.notify("Orc: not inside a git repository", vim.log.levels.ERROR)
+      vim.notify("Orchid: not inside a git repository", vim.log.levels.ERROR)
       return
     end
-    if not spawn_space("@main", main.path, main.branch) then
-      vim.notify("Orc: failed to start terminal", vim.log.levels.ERROR)
+    if not spawn_room("@main", main.path, main.branch) then
+      vim.notify("Orchid: failed to start terminal", vim.log.levels.ERROR)
       return
     end
   end
   if not name then
-    vim.notify("Orc: no active space", vim.log.levels.WARN)
+    vim.notify("Orchid: no active room", vim.log.levels.WARN)
     return
   end
 
-  local space = M.spaces[name]
-  if not space then
-    vim.notify("Orc: space '" .. name .. "' not found", vim.log.levels.WARN)
+  local room = M.rooms[name]
+  if not room then
+    vim.notify("Orchid: room '" .. name .. "' not found", vim.log.levels.WARN)
     return
   end
 
   -- Respawn CLI if it exited
-  if space.status == "exited" then
-    if vim.api.nvim_buf_is_valid(space.bufnr) then
-      vim.api.nvim_buf_delete(space.bufnr, { force = true })
+  if room.status == "exited" then
+    if vim.api.nvim_buf_is_valid(room.bufnr) then
+      vim.api.nvim_buf_delete(room.bufnr, { force = true })
     end
-    if not spawn_space(name, space.worktree_path, space.branch) then
-      vim.notify("Orc: failed to restart terminal", vim.log.levels.ERROR)
+    if not spawn_room(name, room.worktree_path, room.branch) then
+      vim.notify("Orchid: failed to restart terminal", vim.log.levels.ERROR)
       return
     end
-    space = M.spaces[name]
+    room = M.rooms[name]
   end
 
   -- If visible, close it
-  if space.win and vim.api.nvim_win_is_valid(space.win) then
-    vim.api.nvim_win_close(space.win, true)
-    space.win = nil
+  if room.win and vim.api.nvim_win_is_valid(room.win) then
+    vim.api.nvim_win_close(room.win, true)
+    room.win = nil
     return
   end
 
@@ -482,7 +482,7 @@ function M.toggle(name)
     local row = math.floor((vim.o.lines - height) / 2)
     local col = math.floor((vim.o.columns - width) / 2)
     local display = (name == "@main") and "main" or name
-    win = vim.api.nvim_open_win(space.bufnr, true, {
+    win = vim.api.nvim_open_win(room.bufnr, true, {
       relative = "editor",
       width = width,
       height = height,
@@ -490,22 +490,22 @@ function M.toggle(name)
       col = col,
       style = "minimal",
       border = "rounded",
-      title = " Orc: " .. display .. " ",
+      title = " Orchid: " .. display .. " ",
       title_pos = "center",
     })
   elseif config.terminal_direction == "vertical" then
     vim.cmd("vsplit")
     win = vim.api.nvim_get_current_win()
-    vim.api.nvim_win_set_buf(win, space.bufnr)
+    vim.api.nvim_win_set_buf(win, room.bufnr)
   else -- horizontal
     vim.cmd("split")
     win = vim.api.nvim_get_current_win()
-    vim.api.nvim_win_set_buf(win, space.bufnr)
+    vim.api.nvim_win_set_buf(win, room.bufnr)
   end
 
-  space.win = win
-  if space.status == "needs_attention" then
-    space.status = "active"
+  room.win = win
+  if room.status == "needs_attention" then
+    room.status = "active"
   end
 end
 
@@ -517,25 +517,25 @@ function M.has_uncommitted_changes(worktree_path)
   return vim.v.shell_error == 0 and #out > 0
 end
 
---- Delete a space: kill terminal, remove worktree, clean up state.
+--- Delete a room: kill terminal, remove worktree, clean up state.
 --- The branch is kept so it can be reviewed from the main worktree.
 ---@param name string
 ---@param opts? {force?: boolean}
 function M.delete(name, opts)
   opts = opts or {}
   if name == "@main" then
-    vim.notify("Orc: cannot delete the main worktree", vim.log.levels.WARN)
+    vim.notify("Orchid: cannot delete the main worktree", vim.log.levels.WARN)
     return
   end
 
-  local space = M.spaces[name]
-  if not space then
-    vim.notify("Orc: space '" .. name .. "' not found", vim.log.levels.WARN)
+  local room = M.rooms[name]
+  if not room then
+    vim.notify("Orchid: room '" .. name .. "' not found", vim.log.levels.WARN)
     return
   end
 
-  if not opts.force and M.has_uncommitted_changes(space.worktree_path) then
-    local ui = require("orc.ui")
+  if not opts.force and M.has_uncommitted_changes(room.worktree_path) then
+    local ui = require("orchid.ui")
     ui.float_select("'" .. name .. "' has uncommitted changes. delete?", { "no", "yes" }, function(choice)
       if choice == "yes" then
         M.delete(name, { force = true })
@@ -545,77 +545,77 @@ function M.delete(name, opts)
   end
 
   -- Stop signal watcher
-  local ok, signal = pcall(require, "orc.signal")
+  local ok, signal = pcall(require, "orchid.signal")
   if ok then
     signal.unwatch(name)
   end
 
   -- Close window if open
-  if space.win and vim.api.nvim_win_is_valid(space.win) then
-    vim.api.nvim_win_close(space.win, true)
+  if room.win and vim.api.nvim_win_is_valid(room.win) then
+    vim.api.nvim_win_close(room.win, true)
   end
 
   -- Kill terminal
-  if vim.api.nvim_buf_is_valid(space.bufnr) then
-    vim.fn.jobstop(space.chan)
-    vim.api.nvim_buf_delete(space.bufnr, { force = true })
+  if vim.api.nvim_buf_is_valid(room.bufnr) then
+    vim.fn.jobstop(room.chan)
+    vim.api.nvim_buf_delete(room.bufnr, { force = true })
   end
 
   -- Remove worktree (branch is preserved for review)
-  local result = vim.fn.system({ "git", "worktree", "remove", "--force", space.worktree_path })
+  local result = vim.fn.system({ "git", "worktree", "remove", "--force", room.worktree_path })
   if vim.v.shell_error ~= 0 then
-    vim.notify("Orc: worktree removal warning: " .. result, vim.log.levels.WARN)
+    vim.notify("Orchid: worktree removal warning: " .. result, vim.log.levels.WARN)
   end
 
-  M.spaces[name] = nil
+  M.rooms[name] = nil
 
-  if M.active_space == name then
+  if M.active_room == name then
     M.switch("@main")
   end
 
   M.save()
-  vim.notify("Orc: deleted space '" .. name .. "' (branch " .. space.branch .. " kept)", vim.log.levels.INFO)
+  vim.notify("Orchid: deleted room '" .. name .. "' (branch " .. room.branch .. " kept)", vim.log.levels.INFO)
 end
 
---- List all spaces (excludes @main).
----@return table<string, OrcSpace>
+--- List all rooms (excludes @main).
+---@return table<string, OrchidRoom>
 function M.list()
   local result = {}
-  for name, space in pairs(M.spaces) do
+  for name, room in pairs(M.rooms) do
     if name ~= "@main" then
-      result[name] = space
+      result[name] = room
     end
   end
   return result
 end
 
---- Get the active space name.
+--- Get the active room name.
 ---@return string|nil
 function M.get_active()
-  return M.active_space
+  return M.active_room
 end
 
---- Switch the active space and open the current file in that worktree.
+--- Switch the active room and open the current file in that worktree.
 ---@param name string
 function M.switch(name)
-  if name ~= "@main" and not M.spaces[name] then
-    vim.notify("Orc: space '" .. name .. "' not found", vim.log.levels.WARN)
+  if name ~= "@main" and not M.rooms[name] then
+    vim.notify("Orchid: room '" .. name .. "' not found", vim.log.levels.WARN)
     return
   end
 
-  -- Save current file as last_file for the space we're leaving
+  -- Save current file as last_file for the room we're leaving
   local current = vim.api.nvim_buf_get_name(0)
-  if M.active_space and current ~= "" then
+  if M.active_room and current ~= "" then
     local root = repo_root()
     if root then
-      local old_space = M.spaces[M.active_space]
-      local old_root = old_space and old_space.worktree_path or root
+      local old_room = M.rooms[M.active_room]
+      local old_root = old_room and old_room.worktree_path or root
       if current:sub(1, #old_root + 1) == old_root .. "/" then
         local rel = current:sub(#old_root + 2)
-        if old_space then
-          old_space.last_file = rel
+        if old_room then
+          old_room.last_file = rel
         end
-        if M.active_space == "@main" then
+        if M.active_room == "@main" then
           M._main_last_file = rel
         end
       end
@@ -628,13 +628,13 @@ function M.switch(name)
     local main = M.main_worktree()
     target_root = main and main.path
   else
-    target_root = M.spaces[name].worktree_path
+    target_root = M.rooms[name].worktree_path
   end
 
   -- Open file in target worktree: prefer target's last_file, fall back to current file's relative path
   if target_root then
-    local target_space = M.spaces[name]
-    local rel = target_space and target_space.last_file
+    local target_room = M.rooms[name]
+    local rel = target_room and target_room.last_file
     if not rel and name == "@main" then
       rel = M._main_last_file
     end
@@ -643,8 +643,8 @@ function M.switch(name)
     if not rel and current ~= "" then
       local root = repo_root()
       if root then
-        for _, space in pairs(M.spaces) do
-          local wp = space.worktree_path
+        for _, room in pairs(M.rooms) do
+          local wp = room.worktree_path
           if current:sub(1, #wp + 1) == wp .. "/" then
             rel = current:sub(#wp + 2)
             break
@@ -669,65 +669,65 @@ function M.switch(name)
   end
 
   -- Handle window visibility across the switch
-  local ok, grid = pcall(require, "orc.grid")
+  local ok, grid = pcall(require, "orchid.grid")
   if ok and grid.is_active() then
-    -- In grid mode: swap the focused pane to the new space
-    M.active_space = name
+    -- In grid mode: swap the focused pane to the new room
+    M.active_room = name
     M.save()
     grid.swap(name)
     vim.cmd("stopinsert")
     local display = (name == "@main") and "main" or name
-    vim.notify("Orc: active space -> '" .. display .. "'", vim.log.levels.INFO)
+    vim.notify("Orchid: active room -> '" .. display .. "'", vim.log.levels.INFO)
     return
   end
 
-  -- Check if the old active space had a visible window
+  -- Check if the old active room had a visible window
   local old_win_visible = false
-  if M.active_space then
-    local old_space = M.spaces[M.active_space]
-    if old_space and old_space.win and vim.api.nvim_win_is_valid(old_space.win) then
+  if M.active_room then
+    local old_room = M.rooms[M.active_room]
+    if old_room and old_room.win and vim.api.nvim_win_is_valid(old_room.win) then
       old_win_visible = true
-      vim.api.nvim_win_close(old_space.win, true)
-      old_space.win = nil
+      vim.api.nvim_win_close(old_room.win, true)
+      old_room.win = nil
     end
   end
 
-  M.active_space = name
+  M.active_room = name
   M.save()
   vim.cmd("stopinsert")
   local display = (name == "@main") and "main" or name
-  vim.notify("Orc: active space -> '" .. display .. "'", vim.log.levels.INFO)
+  vim.notify("Orchid: active room -> '" .. display .. "'", vim.log.levels.INFO)
 
-  -- If the old space's window was visible, open the new space's window
+  -- If the old room's window was visible, open the new room's window
   if old_win_visible then
     M.toggle(name)
   end
 end
 
---- Update a space's status.
+--- Update a room's status.
 ---@param name string
 ---@param status string
 function M.set_status(name, status)
-  if M.spaces[name] then
-    M.spaces[name].status = status
+  if M.rooms[name] then
+    M.rooms[name].status = status
   end
 end
 
---- Get a space by name, or the active space.
+--- Get a room by name, or the active room.
 ---@param name? string
----@return OrcSpace|nil, string|nil
+---@return OrchidRoom|nil, string|nil
 function M.get(name)
-  name = name or M.active_space
+  name = name or M.active_room
   if not name then
     return nil, nil
   end
-  return M.spaces[name], name
+  return M.rooms[name], name
 end
 
---- Get a sorted list of all space names.
+--- Get a sorted list of all room names.
 ---@return string[]
-local function sorted_space_names()
-  local names = vim.tbl_keys(M.spaces)
+local function sorted_room_names()
+  local names = vim.tbl_keys(M.rooms)
   table.sort(names, function(a, b)
     if a == "@main" then return true end
     if b == "@main" then return false end
@@ -736,13 +736,13 @@ local function sorted_space_names()
   return names
 end
 
---- Cycle to the next or previous space, opening its float if one was visible.
+--- Cycle to the next or previous room, opening its float if one was visible.
 ---@param direction number 1 for forward, -1 for backward
 function M.cycle(direction)
-  local names = sorted_space_names()
+  local names = sorted_room_names()
   if #names <= 1 then return end
 
-  local current = M.active_space or "@main"
+  local current = M.active_room or "@main"
   local idx = 1
   for i, name in ipairs(names) do
     if name == current then
@@ -755,10 +755,10 @@ function M.cycle(direction)
   M.switch(names[idx])
 end
 
---- Get space names for completion.
+--- Get room names for completion.
 ---@return string[]
 function M.names()
-  return vim.tbl_keys(M.spaces)
+  return vim.tbl_keys(M.rooms)
 end
 
 return M

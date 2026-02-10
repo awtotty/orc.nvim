@@ -4,7 +4,7 @@ local M = {}
 local watchers = {}
 
 local function get_config()
-  return require("orc").config
+  return require("orchid").config
 end
 
 --- Parse a signal line into type and message.
@@ -31,7 +31,7 @@ end
 --- Read and process the signal file.
 --- Uses rename to atomically claim the file contents, avoiding races
 --- where a write between read and truncate would be lost.
----@param name string Space name
+---@param name string Room name
 ---@param path string Signal file path
 local function process_signal(name, path)
   local tmp = path .. ".processing"
@@ -68,24 +68,24 @@ local function process_signal(name, path)
       local level = signal_level(signal_type)
       vim.schedule(function()
         vim.notify(
-          string.format("Orc [%s] %s: %s", name, signal_type, message),
+          string.format("Orchid [%s] %s: %s", name, signal_type, message),
           level
         )
-        local orc = require("orc")
+        local orchid = require("orchid")
         if signal_type == "DONE" then
-          orc.set_status(name, "ready")
+          orchid.set_status(name, "ready")
         elseif signal_type == "READY" then
-          orc.set_status(name, "active")
+          orchid.set_status(name, "active")
         elseif signal_type == "QUESTION" or signal_type == "BLOCKED" then
-          orc.set_status(name, "needs_attention")
+          orchid.set_status(name, "needs_attention")
         end
       end)
     end
   end
 end
 
---- Start watching a space's signal file.
----@param name string Space name
+--- Start watching a room's signal file.
+---@param name string Room name
 ---@param worktree_path string
 function M.watch(name, worktree_path)
   if watchers[name] then
@@ -120,7 +120,7 @@ function M.watch(name, worktree_path)
   watchers[name] = handle
 end
 
---- Stop watching a space's signal file.
+--- Stop watching a room's signal file.
 ---@param name string
 function M.unwatch(name)
   local handle = watchers[name]

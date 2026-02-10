@@ -45,25 +45,25 @@ local function format_context(lines, filename, start_line, end_line)
   return header .. "\n" .. fence_open .. "\n" .. code .. "\n" .. fence_close
 end
 
---- Send text to a space's terminal, then open and focus it.
----@param space_name? string
+--- Send text to a room's terminal, then open and focus it.
+---@param room_name? string
 ---@param text string
-local function send_to_space(space_name, text)
-  local orc = require("orc")
-  local space, name = orc.get(space_name)
+local function send_to_room(room_name, text)
+  local orchid = require("orchid")
+  local room, name = orchid.get(room_name)
 
-  if not space then
-    vim.notify("Orc: no space to send to", vim.log.levels.WARN)
+  if not room then
+    vim.notify("Orchid: no room to send to", vim.log.levels.WARN)
     return
   end
 
-  -- Open and focus the terminal (toggle handles respawning exited spaces)
-  if not (space.win and vim.api.nvim_win_is_valid(space.win)) then
-    orc.toggle(name)
-    space = orc.get(name)
-    if not space then return end
+  -- Open and focus the terminal (toggle handles respawning exited rooms)
+  if not (room.win and vim.api.nvim_win_is_valid(room.win)) then
+    orchid.toggle(name)
+    room = orchid.get(name)
+    if not room then return end
   else
-    vim.api.nvim_set_current_win(space.win)
+    vim.api.nvim_set_current_win(room.win)
     vim.cmd("startinsert")
   end
 
@@ -72,10 +72,10 @@ local function send_to_space(space_name, text)
   vim.api.nvim_paste(text .. "\n", true, -1)
 end
 
---- Open a floating prompt input, then send to a space.
+--- Open a floating prompt input, then send to a room.
 --- Optionally includes visual selection as context.
----@param space_name? string
-function M.prompt(space_name)
+---@param room_name? string
+function M.prompt(room_name)
   -- Capture visual selection only when called from visual mode
   local context = nil
   local mode = vim.fn.mode()
@@ -101,7 +101,7 @@ function M.prompt(space_name)
     col = math.floor((vim.o.columns - width) / 2),
     style = "minimal",
     border = "rounded",
-    title = " Orc Prompt ",
+    title = " Orchid Prompt ",
     title_pos = "center",
   })
 
@@ -127,7 +127,7 @@ function M.prompt(space_name)
       message = input
     end
 
-    send_to_space(space_name, message)
+    send_to_room(room_name, message)
   end
 
   local function cancel()

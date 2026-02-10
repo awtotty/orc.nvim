@@ -1,12 +1,12 @@
 Idea: Write a neovim plugin for how you want to work with AI agents.
 
-Branding: Orc(hestrator)
+Branding: Orchid
 
 Design notes:
 
 - Just be able to use existing CLIs (Claude, Codex, etc.)
-- Manage worktrees and git branches with working agents (Spaces/Rooms)
-- Agents work on their own and bring that work to the main space/room for review
+- Manage worktrees and git branches with working agents (Rooms)
+- Agents work on their own and bring that work to the main room for review
 - Easily define tasks and see what tasks each agent is working on
 - Code review
 - Chat with an agent about a branch
@@ -15,16 +15,16 @@ Design notes:
 
 Concept:
 
-- Space buffer
-  - Pull up a buffer to see agent spaces and progress
-  - Select a space, create a new space, etc.
-  - Spaces are worktrees/branches for agents
-  - See "notifications" of work ready for review, questions asked, etc. by space
+- Room buffer
+  - Pull up a buffer to see agent rooms and progress
+  - Select a room, create a new room, etc.
+  - Rooms are worktrees/branches for agents
+  - See "notifications" of work ready for review, questions asked, etc. by room
 - Prompt buffer
   - Optionally select lines to reference
   - Write a prompt
   - Control modes, etc. (this is just a wrapper on the CLI of your choosing)
-  - Queue prompts in a space (maybe just supported by the CLI)
+  - Queue prompts in a room (maybe just supported by the CLI)
 - Review mode
   - Open changes in a branch in the main buffer (select diff ref)
   - Tab through changes

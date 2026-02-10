@@ -1,14 +1,14 @@
 local M = {}
 
-local spaces = require("orc.spaces")
+local rooms = require("orchid.rooms")
 
----@class OrcGridState
+---@class OrchidGridState
 ---@field active boolean
 ---@field tabnr number|nil
----@field wins table<number, string> win_id → space_name
+---@field wins table<number, string> win_id → room_name
 ---@field prev_tab number|nil
 
----@type OrcGridState
+---@type OrchidGridState
 local state = {
   active = false,
   tabnr = nil,
@@ -22,23 +22,23 @@ function M.is_active()
   return state.active
 end
 
---- Collect up to 4 spaces for the grid.
---- Active space first, then others alphabetically. Includes @main (lazy-created).
+--- Collect up to 4 rooms for the grid.
+--- Active room first, then others alphabetically. Includes @main (lazy-created).
 ---@return string[]
-local function collect_spaces()
+local function collect_rooms()
   local names = {}
   local seen = {}
 
-  -- Active space first
-  local active = spaces.get_active()
-  if active and spaces.spaces[active] then
+  -- Active room first
+  local active = rooms.get_active()
+  if active and rooms.rooms[active] then
     table.insert(names, active)
     seen[active] = true
   end
 
-  -- Collect remaining space names, sorted
+  -- Collect remaining room names, sorted
   local others = {}
-  for name in pairs(spaces.spaces) do
+  for name in pairs(rooms.rooms) do
     if not seen[name] then
       table.insert(others, name)
     end
@@ -53,28 +53,28 @@ local function collect_spaces()
 
   -- Include @main if we have room and it's not already there
   if #names < 4 and not seen["@main"] then
-    local main = spaces.main_worktree()
+    local main = rooms.main_worktree()
     if main then
-      if not spaces.spaces["@main"] then
+      if not rooms.rooms["@main"] then
         -- Lazy-create @main terminal
         local bufnr = vim.api.nvim_create_buf(false, true)
         vim.api.nvim_set_option_value("bufhidden", "hide", { buf = bufnr })
         local chan = vim.api.nvim_buf_call(bufnr, function()
-          local config = require("orc").config
+          local config = require("orchid").config
           return vim.fn.termopen(config.cli, {
             cwd = main.path,
-            env = { ORC_SIGNAL_FILE = main.path .. "/" .. config.signal_file },
+            env = { ORCHID_SIGNAL_FILE = main.path .. "/" .. config.signal_file },
             on_exit = function(_, code)
               vim.schedule(function()
-                if spaces.spaces["@main"] then
-                  spaces.spaces["@main"].status = "exited"
+                if rooms.rooms["@main"] then
+                  rooms.rooms["@main"].status = "exited"
                 end
               end)
             end,
           })
         end)
         if chan > 0 then
-          spaces.spaces["@main"] = {
+          rooms.rooms["@main"] = {
             bufnr = bufnr,
             chan = chan,
             worktree_path = main.path,
@@ -93,29 +93,29 @@ local function collect_spaces()
   return names
 end
 
---- Respawn a space's terminal if it has exited.
+--- Respawn a room's terminal if it has exited.
 ---@param name string
 local function ensure_alive(name)
-  local space = spaces.spaces[name]
-  if not space then return end
-  if space.status ~= "exited" then return end
+  local room = rooms.rooms[name]
+  if not room then return end
+  if room.status ~= "exited" then return end
 
-  if vim.api.nvim_buf_is_valid(space.bufnr) then
-    vim.api.nvim_buf_delete(space.bufnr, { force = true })
+  if vim.api.nvim_buf_is_valid(room.bufnr) then
+    vim.api.nvim_buf_delete(room.bufnr, { force = true })
   end
 
-  local config = require("orc").config
+  local config = require("orchid").config
   local bufnr = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_set_option_value("bufhidden", "hide", { buf = bufnr })
 
   local chan = vim.api.nvim_buf_call(bufnr, function()
     return vim.fn.termopen(config.cli, {
-      cwd = space.worktree_path,
-      env = { ORC_SIGNAL_FILE = space.worktree_path .. "/" .. config.signal_file },
+      cwd = room.worktree_path,
+      env = { ORCHID_SIGNAL_FILE = room.worktree_path .. "/" .. config.signal_file },
       on_exit = function(_, code)
         vim.schedule(function()
-          if spaces.spaces[name] then
-            spaces.spaces[name].status = "exited"
+          if rooms.rooms[name] then
+            rooms.rooms[name].status = "exited"
           end
         end)
       end,
@@ -123,9 +123,9 @@ local function ensure_alive(name)
   end)
 
   if chan > 0 then
-    space.bufnr = bufnr
-    space.chan = chan
-    space.status = "active"
+    room.bufnr = bufnr
+    room.chan = chan
+    room.status = "active"
   end
 end
 
@@ -169,11 +169,11 @@ local function create_layout(names)
 
   -- First pane: current window
   local first_win = vim.api.nvim_get_current_win()
-  local space = spaces.spaces[names[1]]
-  vim.api.nvim_win_set_buf(first_win, space.bufnr)
+  local room = rooms.rooms[names[1]]
+  vim.api.nvim_win_set_buf(first_win, room.bufnr)
   configure_win(first_win, names[1])
-  setup_buf_keymaps(space.bufnr)
-  space.win = first_win
+  setup_buf_keymaps(room.bufnr)
+  room.win = first_win
   wins[first_win] = names[1]
 
   if count == 1 then
@@ -184,11 +184,11 @@ local function create_layout(names)
     -- Vertical split: side by side
     vim.cmd("vsplit")
     local win2 = vim.api.nvim_get_current_win()
-    local s2 = spaces.spaces[names[2]]
-    vim.api.nvim_win_set_buf(win2, s2.bufnr)
+    local r2 = rooms.rooms[names[2]]
+    vim.api.nvim_win_set_buf(win2, r2.bufnr)
     configure_win(win2, names[2])
-    setup_buf_keymaps(s2.bufnr)
-    s2.win = win2
+    setup_buf_keymaps(r2.bufnr)
+    r2.win = win2
     wins[win2] = names[2]
     return wins
   end
@@ -197,55 +197,55 @@ local function create_layout(names)
     -- Top full-width + bottom two side-by-side
     vim.cmd("split")
     local win_bottom_left = vim.api.nvim_get_current_win()
-    local s2 = spaces.spaces[names[2]]
-    vim.api.nvim_win_set_buf(win_bottom_left, s2.bufnr)
+    local r2 = rooms.rooms[names[2]]
+    vim.api.nvim_win_set_buf(win_bottom_left, r2.bufnr)
     configure_win(win_bottom_left, names[2])
-    setup_buf_keymaps(s2.bufnr)
-    s2.win = win_bottom_left
+    setup_buf_keymaps(r2.bufnr)
+    r2.win = win_bottom_left
     wins[win_bottom_left] = names[2]
 
     vim.cmd("vsplit")
     local win_bottom_right = vim.api.nvim_get_current_win()
-    local s3 = spaces.spaces[names[3]]
-    vim.api.nvim_win_set_buf(win_bottom_right, s3.bufnr)
+    local r3 = rooms.rooms[names[3]]
+    vim.api.nvim_win_set_buf(win_bottom_right, r3.bufnr)
     configure_win(win_bottom_right, names[3])
-    setup_buf_keymaps(s3.bufnr)
-    s3.win = win_bottom_right
+    setup_buf_keymaps(r3.bufnr)
+    r3.win = win_bottom_right
     wins[win_bottom_right] = names[3]
     return wins
   end
 
-  -- 4 spaces: 2x2 grid
+  -- 4 rooms: 2x2 grid
   -- Start with top-left (already set), create top-right
   vim.cmd("vsplit")
   local win_top_right = vim.api.nvim_get_current_win()
-  local s2 = spaces.spaces[names[2]]
-  vim.api.nvim_win_set_buf(win_top_right, s2.bufnr)
+  local r2 = rooms.rooms[names[2]]
+  vim.api.nvim_win_set_buf(win_top_right, r2.bufnr)
   configure_win(win_top_right, names[2])
-  setup_buf_keymaps(s2.bufnr)
-  s2.win = win_top_right
+  setup_buf_keymaps(r2.bufnr)
+  r2.win = win_top_right
   wins[win_top_right] = names[2]
 
   -- Go to top-left, split down for bottom-left
   vim.api.nvim_set_current_win(first_win)
   vim.cmd("split")
   local win_bottom_left = vim.api.nvim_get_current_win()
-  local s3 = spaces.spaces[names[3]]
-  vim.api.nvim_win_set_buf(win_bottom_left, s3.bufnr)
+  local r3 = rooms.rooms[names[3]]
+  vim.api.nvim_win_set_buf(win_bottom_left, r3.bufnr)
   configure_win(win_bottom_left, names[3])
-  setup_buf_keymaps(s3.bufnr)
-  s3.win = win_bottom_left
+  setup_buf_keymaps(r3.bufnr)
+  r3.win = win_bottom_left
   wins[win_bottom_left] = names[3]
 
   -- Go to top-right, split down for bottom-right
   vim.api.nvim_set_current_win(win_top_right)
   vim.cmd("split")
   local win_bottom_right = vim.api.nvim_get_current_win()
-  local s4 = spaces.spaces[names[4]]
-  vim.api.nvim_win_set_buf(win_bottom_right, s4.bufnr)
+  local r4 = rooms.rooms[names[4]]
+  vim.api.nvim_win_set_buf(win_bottom_right, r4.bufnr)
   configure_win(win_bottom_right, names[4])
-  setup_buf_keymaps(s4.bufnr)
-  s4.win = win_bottom_right
+  setup_buf_keymaps(r4.bufnr)
+  r4.win = win_bottom_right
   wins[win_bottom_right] = names[4]
 
   return wins
@@ -253,7 +253,7 @@ end
 
 --- Set up autocmds for grid cleanup.
 local function setup_autocmds()
-  local group = vim.api.nvim_create_augroup("OrcGrid", { clear = true })
+  local group = vim.api.nvim_create_augroup("OrchidGrid", { clear = true })
 
   vim.api.nvim_create_autocmd("TabClosed", {
     group = group,
@@ -271,16 +271,16 @@ local function setup_autocmds()
       if not found then
         -- Grid tab was closed externally
         for win_id, name in pairs(state.wins) do
-          local space = spaces.spaces[name]
-          if space then
-            space.win = nil
+          local room = rooms.rooms[name]
+          if room then
+            room.win = nil
           end
         end
         state.active = false
         state.tabnr = nil
         state.wins = {}
         state.prev_tab = nil
-        pcall(vim.api.nvim_del_augroup_by_name, "OrcGrid")
+        pcall(vim.api.nvim_del_augroup_by_name, "OrchidGrid")
       end
     end,
   })
@@ -296,23 +296,23 @@ function M.open()
     return
   end
 
-  local names = collect_spaces()
+  local names = collect_rooms()
   if #names == 0 then
-    vim.notify("Orc: no spaces available for grid", vim.log.levels.WARN)
+    vim.notify("Orchid: no rooms available for grid", vim.log.levels.WARN)
     return
   end
 
-  -- Respawn any exited spaces
+  -- Respawn any exited rooms
   for _, name in ipairs(names) do
     ensure_alive(name)
   end
 
   -- Close any open toggle floats to prevent buffer-in-two-windows issues
   for _, name in ipairs(names) do
-    local space = spaces.spaces[name]
-    if space and space.win and vim.api.nvim_win_is_valid(space.win) then
-      vim.api.nvim_win_close(space.win, true)
-      space.win = nil
+    local room = rooms.rooms[name]
+    if room and room.win and vim.api.nvim_win_is_valid(room.win) then
+      vim.api.nvim_win_close(room.win, true)
+      room.win = nil
     end
   end
 
@@ -352,19 +352,19 @@ end
 function M.close()
   if not state.active then return end
 
-  -- Get focused pane's space name → set as active space
+  -- Get focused pane's room name → set as active room
   local cur_win = vim.api.nvim_get_current_win()
-  local focused_space = state.wins[cur_win]
-  if focused_space then
-    spaces.active_space = focused_space
-    spaces.save()
+  local focused_room = state.wins[cur_win]
+  if focused_room then
+    rooms.active_room = focused_room
+    rooms.save()
   end
 
-  -- Clear space.win for all grid spaces
+  -- Clear room.win for all grid rooms
   for _, name in pairs(state.wins) do
-    local space = spaces.spaces[name]
-    if space then
-      space.win = nil
+    local room = rooms.rooms[name]
+    if room then
+      room.win = nil
     end
   end
 
@@ -385,22 +385,22 @@ function M.close()
   state.tabnr = nil
   state.wins = {}
   state.prev_tab = nil
-  pcall(vim.api.nvim_del_augroup_by_name, "OrcGrid")
+  pcall(vim.api.nvim_del_augroup_by_name, "OrchidGrid")
 end
 
---- Swap the focused grid pane to show a different space.
----@param name string The space name to swap in.
+--- Swap the focused grid pane to show a different room.
+---@param name string The room name to swap in.
 ---@return boolean success
 function M.swap(name)
   if not state.active then return false end
 
-  local space = spaces.spaces[name]
-  if not space then return false end
+  local room = rooms.rooms[name]
+  if not room then return false end
 
   -- Respawn if exited
   ensure_alive(name)
-  space = spaces.spaces[name]
-  if not space then return false end
+  room = rooms.rooms[name]
+  if not room then return false end
 
   -- Find the currently focused window in the grid
   local cur_win = vim.api.nvim_get_current_win()
@@ -417,17 +417,17 @@ function M.swap(name)
     if not old_name then return false end
   end
 
-  -- Clear old space's win reference
-  local old_space = spaces.spaces[old_name]
-  if old_space then
-    old_space.win = nil
+  -- Clear old room's win reference
+  local old_room = rooms.rooms[old_name]
+  if old_room then
+    old_room.win = nil
   end
 
   -- Swap the buffer in the grid pane
-  vim.api.nvim_win_set_buf(cur_win, space.bufnr)
+  vim.api.nvim_win_set_buf(cur_win, room.bufnr)
   configure_win(cur_win, name)
-  setup_buf_keymaps(space.bufnr)
-  space.win = cur_win
+  setup_buf_keymaps(room.bufnr)
+  room.win = cur_win
 
   -- Update grid state
   state.wins[cur_win] = name
