@@ -392,9 +392,8 @@ function M.create(name, opts)
     return
   end
 
-  M.active_space = name
-  M.save()
   vim.notify("Orc: created space '" .. name .. "'", vim.log.levels.INFO)
+  M.switch(name)
 end
 
 --- Toggle visibility of a space's terminal.
