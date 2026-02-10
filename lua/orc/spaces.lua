@@ -99,51 +99,66 @@ local function spawn_space(name, worktree_path, branch)
         vim.uv.fs_symlink(root_claude, dst_claude)
       end
 
-      -- Write hooks config so signals fire automatically
+      -- Build space settings: merge root permissions + signal permission + hooks
       local hooks_settings = claude_dir .. "/settings.local.json"
       local sig = signal_path:gsub('"', '\\"')
-      local hooks_json = string.format([[{
-  "permissions": {
-    "allow": [
-      "Bash(echo * >> \"%s\")"
-    ]
-  },
-  "hooks": {
-    "Notification": [
-      {
-        "matcher": "idle_prompt",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "echo \"QUESTION: Agent is waiting for input\" >> \"%s\""
-          }
-        ]
-      },
-      {
-        "matcher": "permission_prompt",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "echo \"BLOCKED: Agent needs tool permission\" >> \"%s\""
-          }
-        ]
+
+      -- Collect permissions: start with signal echo
+      local allow = { string.format('Bash(echo * >> "%s")', sig) }
+
+      -- Copy permissions from root settings.local.json
+      local root_settings_path = root_claude_dir .. "/settings.local.json"
+      local rf = io.open(root_settings_path, "r")
+      if rf then
+        local content = rf:read("*a")
+        rf:close()
+        local parse_ok, root_settings = pcall(vim.json.decode, content)
+        if parse_ok and root_settings and root_settings.permissions and root_settings.permissions.allow then
+          for _, perm in ipairs(root_settings.permissions.allow) do
+            table.insert(allow, perm)
+          end
+        end
+      end
+
+      local settings = {
+        permissions = { allow = allow },
+        hooks = {
+          Notification = {
+            {
+              matcher = "idle_prompt",
+              hooks = {
+                {
+                  type = "command",
+                  command = string.format('echo "QUESTION: Agent is waiting for input" >> "%s"', sig),
+                },
+              },
+            },
+            {
+              matcher = "permission_prompt",
+              hooks = {
+                {
+                  type = "command",
+                  command = string.format('echo "BLOCKED: Agent needs tool permission" >> "%s"', sig),
+                },
+              },
+            },
+          },
+          UserPromptSubmit = {
+            {
+              hooks = {
+                {
+                  type = "command",
+                  command = string.format('echo "READY: Agent resumed" >> "%s"', sig),
+                },
+              },
+            },
+          },
+        },
       }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "echo \"READY: Agent resumed\" >> \"%s\""
-          }
-        ]
-      }
-    ]
-  }
-}]], sig, sig, sig, sig)
+
       local hf = io.open(hooks_settings, "w")
       if hf then
-        hf:write(hooks_json)
+        hf:write(vim.json.encode(settings))
         hf:close()
       end
     end
