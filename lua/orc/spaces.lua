@@ -597,6 +597,19 @@ function M.switch(name)
     end
   end
 
+  -- Handle window visibility across the switch
+  local ok, grid = pcall(require, "orc.grid")
+  if ok and grid.is_active() then
+    -- In grid mode: swap the focused pane to the new space
+    M.active_space = name
+    M.save()
+    grid.swap(name)
+    vim.cmd("stopinsert")
+    local display = (name == "@main") and "main" or name
+    vim.notify("Orc: active space -> '" .. display .. "'", vim.log.levels.INFO)
+    return
+  end
+
   -- Check if the old active space had a visible window
   local old_win_visible = false
   if M.active_space then

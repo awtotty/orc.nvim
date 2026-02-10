@@ -382,6 +382,53 @@ function M.close()
   pcall(vim.api.nvim_del_augroup_by_name, "OrcGrid")
 end
 
+--- Swap the focused grid pane to show a different space.
+---@param name string The space name to swap in.
+---@return boolean success
+function M.swap(name)
+  if not state.active then return false end
+
+  local space = spaces.spaces[name]
+  if not space then return false end
+
+  -- Respawn if exited
+  ensure_alive(name)
+  space = spaces.spaces[name]
+  if not space then return false end
+
+  -- Find the currently focused window in the grid
+  local cur_win = vim.api.nvim_get_current_win()
+  local old_name = state.wins[cur_win]
+  if not old_name then
+    -- Focused window isn't a grid pane; use the first grid window
+    for win_id, _ in pairs(state.wins) do
+      if vim.api.nvim_win_is_valid(win_id) then
+        cur_win = win_id
+        old_name = state.wins[win_id]
+        break
+      end
+    end
+    if not old_name then return false end
+  end
+
+  -- Clear old space's win reference
+  local old_space = spaces.spaces[old_name]
+  if old_space then
+    old_space.win = nil
+  end
+
+  -- Swap the buffer in the grid pane
+  vim.api.nvim_win_set_buf(cur_win, space.bufnr)
+  configure_win(cur_win, name)
+  setup_buf_keymaps(space.bufnr)
+  space.win = cur_win
+
+  -- Update grid state
+  state.wins[cur_win] = name
+
+  return true
+end
+
 --- Toggle grid view.
 function M.toggle()
   if state.active then
