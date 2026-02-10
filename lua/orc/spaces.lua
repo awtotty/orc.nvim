@@ -462,10 +462,20 @@ function M.toggle(name)
   vim.cmd("startinsert")
 end
 
+--- Check if a worktree has uncommitted changes.
+---@param worktree_path string
+---@return boolean
+function M.has_uncommitted_changes(worktree_path)
+  local out = vim.fn.systemlist({ "git", "-C", worktree_path, "status", "--porcelain" })
+  return vim.v.shell_error == 0 and #out > 0
+end
+
 --- Delete a space: kill terminal, remove worktree, clean up state.
 --- The branch is kept so it can be reviewed from the main worktree.
 ---@param name string
-function M.delete(name)
+---@param opts? {force?: boolean}
+function M.delete(name, opts)
+  opts = opts or {}
   if name == "@main" then
     vim.notify("Orc: cannot delete the main worktree", vim.log.levels.WARN)
     return
@@ -474,6 +484,16 @@ function M.delete(name)
   local space = M.spaces[name]
   if not space then
     vim.notify("Orc: space '" .. name .. "' not found", vim.log.levels.WARN)
+    return
+  end
+
+  if not opts.force and M.has_uncommitted_changes(space.worktree_path) then
+    local ui = require("orc.ui")
+    ui.float_select("'" .. name .. "' has uncommitted changes. delete?", { "no", "yes" }, function(choice)
+      if choice == "yes" then
+        M.delete(name, { force = true })
+      end
+    end)
     return
   end
 
