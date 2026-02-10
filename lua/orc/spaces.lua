@@ -373,6 +373,13 @@ end
 --- Toggle visibility of a space's terminal.
 ---@param name? string Defaults to active space. Use "@main" for the main worktree.
 function M.toggle(name)
+  -- Prevent individual toggles from breaking grid layout
+  local ok, grid = pcall(require, "orc.grid")
+  if ok and grid.is_active() then
+    vim.notify("Orc: close grid first (<leader>og) before toggling individual spaces", vim.log.levels.WARN)
+    return
+  end
+
   name = name or M.active_space or "@main"
 
   -- Lazily create a terminal for the main worktree
@@ -590,11 +597,40 @@ function M.switch(name)
     end
   end
 
+  -- Handle window visibility across the switch
+  local ok, grid = pcall(require, "orc.grid")
+  if ok and grid.is_active() then
+    -- In grid mode: swap the focused pane to the new space
+    M.active_space = name
+    M.save()
+    grid.swap(name)
+    vim.cmd("stopinsert")
+    local display = (name == "@main") and "main" or name
+    vim.notify("Orc: active space -> '" .. display .. "'", vim.log.levels.INFO)
+    return
+  end
+
+  -- Check if the old active space had a visible window
+  local old_win_visible = false
+  if M.active_space then
+    local old_space = M.spaces[M.active_space]
+    if old_space and old_space.win and vim.api.nvim_win_is_valid(old_space.win) then
+      old_win_visible = true
+      vim.api.nvim_win_close(old_space.win, true)
+      old_space.win = nil
+    end
+  end
+
   M.active_space = name
   M.save()
   vim.cmd("stopinsert")
   local display = (name == "@main") and "main" or name
   vim.notify("Orc: active space -> '" .. display .. "'", vim.log.levels.INFO)
+
+  -- If the old space's window was visible, open the new space's window
+  if old_win_visible then
+    M.toggle(name)
+  end
 end
 
 --- Update a space's status.

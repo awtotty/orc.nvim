@@ -16,6 +16,7 @@ M.config = {
     { "<leader>ow", "<cmd>OrcList<cr>", mode = "n", desc = "Orc: list spaces" },
     { "<leader>ot", "<cmd>OrcToggle<cr>", mode = { "n", "v" }, desc = "Orc: toggle terminal" },
     { "<leader>oe", "<cmd>OrcPrompt<cr>", mode = { "n", "v" }, desc = "Orc: prompt" },
+    { "<leader>og", "<cmd>OrcGrid<cr>", mode = "n", desc = "Orc: toggle grid" },
   },
 }
 
@@ -52,6 +53,10 @@ end
 
 function M.prompt(name)
   require("orc.prompt").prompt(name)
+end
+
+function M.grid()
+  require("orc.grid").toggle()
 end
 
 --- Get the active space name.
