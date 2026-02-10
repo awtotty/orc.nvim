@@ -31,6 +31,7 @@ local function float_input(title, callback, default)
     vim.api.nvim_win_close(win, true)
     vim.cmd("stopinsert")
     local value = vim.trim(table.concat(lines, ""))
+    value = value:gsub("%s+", "-")
     if value == "" then
       value = default
     end
