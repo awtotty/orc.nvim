@@ -249,14 +249,14 @@ function M.list()
     close()
 
     if action == "new" then
-      float_input("space name", function(name)
+      float_input("Space name", function(name)
         orc.create(name)
       end)
     elseif action == "branch" then
       local branches = git_branches()
-      M.float_select("select branch", branches, function(branch_name)
+      M.float_select("Select branch", branches, function(branch_name)
         local default_name = branch_name:gsub("/", "-")
-        float_input("space name [" .. default_name .. "]", function(name)
+        float_input("Space name [" .. default_name .. "]", function(name)
           orc.create(name, { branch = branch_name })
         end, default_name)
       end)
@@ -265,7 +265,7 @@ function M.list()
       if #display == 0 then
         vim.notify("Orc: no untracked worktrees found", vim.log.levels.WARN)
       else
-        M.float_select("select worktree", display, function(item)
+        M.float_select("Select worktree", display, function(item)
           local idx
           for i, d in ipairs(display) do
             if d == item then
@@ -276,7 +276,7 @@ function M.list()
           if not idx or not wt_map[idx] then return end
           local wt = wt_map[idx]
           local default_name = wt.branch:gsub("/", "-")
-          float_input("space name [" .. default_name .. "]", function(name)
+          float_input("Space name [" .. default_name .. "]", function(name)
             orc.create(name, { worktree = wt.path })
           end, default_name)
         end)
@@ -314,7 +314,7 @@ function M.list()
   -- n: new space shortcut
   vim.keymap.set("n", "n", function()
     close()
-    float_input("space name", function(name)
+    float_input("Space name", function(name)
       orc.create(name)
     end)
   end, { buffer = buf, nowait = true })
@@ -323,9 +323,9 @@ function M.list()
   vim.keymap.set("n", "b", function()
     close()
     local branches = git_branches()
-    M.float_select("select branch", branches, function(branch_name)
+    M.float_select("Select branch", branches, function(branch_name)
       local default_name = branch_name:gsub("/", "-")
-      float_input("space name [" .. default_name .. "]", function(name)
+      float_input("Space name [" .. default_name .. "]", function(name)
         orc.create(name, { branch = branch_name })
       end, default_name)
     end)
@@ -338,7 +338,7 @@ function M.list()
     if #display == 0 then
       vim.notify("Orc: no untracked worktrees found", vim.log.levels.WARN)
     else
-      M.float_select("select worktree", display, function(item)
+      M.float_select("Select worktree", display, function(item)
         local idx
         for i, d in ipairs(display) do
           if d == item then
@@ -349,7 +349,7 @@ function M.list()
         if not idx or not wt_map[idx] then return end
         local wt = wt_map[idx]
         local default_name = wt.branch:gsub("/", "-")
-        float_input("space name [" .. default_name .. "]", function(name)
+        float_input("Space name [" .. default_name .. "]", function(name)
           orc.create(name, { worktree = wt.path })
         end, default_name)
       end)
