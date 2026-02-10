@@ -597,11 +597,27 @@ function M.switch(name)
     end
   end
 
+  -- Check if the old active space had a visible window
+  local old_win_visible = false
+  if M.active_space then
+    local old_space = M.spaces[M.active_space]
+    if old_space and old_space.win and vim.api.nvim_win_is_valid(old_space.win) then
+      old_win_visible = true
+      vim.api.nvim_win_close(old_space.win, true)
+      old_space.win = nil
+    end
+  end
+
   M.active_space = name
   M.save()
   vim.cmd("stopinsert")
   local display = (name == "@main") and "main" or name
   vim.notify("Orc: active space -> '" .. display .. "'", vim.log.levels.INFO)
+
+  -- If the old space's window was visible, open the new space's window
+  if old_win_visible then
+    M.toggle(name)
+  end
 end
 
 --- Update a space's status.
