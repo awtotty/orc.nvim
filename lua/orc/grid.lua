@@ -319,11 +319,17 @@ function M.open()
   -- Save current tab and create a new one
   state.prev_tab = vim.api.nvim_get_current_tabpage()
   vim.cmd("tabnew")
+  local empty_buf = vim.api.nvim_get_current_buf()
   state.tabnr = vim.api.nvim_get_current_tabpage()
 
   -- Create the layout
   state.wins = create_layout(names)
   state.active = true
+
+  -- Delete the orphaned [No Name] buffer created by tabnew
+  if vim.api.nvim_buf_is_valid(empty_buf) and #vim.fn.win_findbuf(empty_buf) == 0 then
+    vim.api.nvim_buf_delete(empty_buf, { force = true })
+  end
 
   -- Set up autocmds
   setup_autocmds()
