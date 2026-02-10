@@ -83,7 +83,7 @@ local function spawn_space(name, worktree_path, branch)
         while true do
           local entry, typ = vim.uv.fs_scandir_next(handle)
           if not entry then break end
-          if typ == "file" then
+          if typ == "file" and entry ~= "settings.local.json" then
             local dst = claude_dir .. "/" .. entry
             if vim.fn.filereadable(dst) == 0 and not vim.uv.fs_lstat(dst) then
               vim.uv.fs_symlink(root_claude_dir .. "/" .. entry, dst)
