@@ -311,6 +311,51 @@ function M.list()
     end)
   end, { buffer = buf, nowait = true })
 
+  -- n: new space shortcut
+  vim.keymap.set("n", "n", function()
+    close()
+    float_input("space name", function(name)
+      orc.create(name)
+    end)
+  end, { buffer = buf, nowait = true })
+
+  -- b: from branch shortcut
+  vim.keymap.set("n", "b", function()
+    close()
+    local branches = git_branches()
+    M.float_select("select branch", branches, function(branch_name)
+      local default_name = branch_name:gsub("/", "-")
+      float_input("space name [" .. default_name .. "]", function(name)
+        orc.create(name, { branch = branch_name })
+      end, default_name)
+    end)
+  end, { buffer = buf, nowait = true })
+
+  -- w: from worktree shortcut
+  vim.keymap.set("n", "w", function()
+    close()
+    local display, wt_map = git_worktrees()
+    if #display == 0 then
+      vim.notify("Orc: no untracked worktrees found", vim.log.levels.WARN)
+    else
+      M.float_select("select worktree", display, function(item)
+        local idx
+        for i, d in ipairs(display) do
+          if d == item then
+            idx = i
+            break
+          end
+        end
+        if not idx or not wt_map[idx] then return end
+        local wt = wt_map[idx]
+        local default_name = wt.branch:gsub("/", "-")
+        float_input("space name [" .. default_name .. "]", function(name)
+          orc.create(name, { worktree = wt.path })
+        end, default_name)
+      end)
+    end
+  end, { buffer = buf, nowait = true })
+
   vim.keymap.set("n", "q", close, { buffer = buf, nowait = true })
   vim.keymap.set("n", "<Esc>", close, { buffer = buf, nowait = true })
   vim.api.nvim_create_autocmd("BufLeave", { buffer = buf, once = true, callback = close })
