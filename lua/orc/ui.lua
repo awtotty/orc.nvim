@@ -55,7 +55,7 @@ end
 ---@param title string
 ---@param items string[]
 ---@param callback fun(item: string)
-local function float_select(title, items, callback)
+function M.float_select(title, items, callback)
   if #items == 0 then
     vim.notify("Orc: no items to select", vim.log.levels.WARN)
     return
@@ -253,7 +253,7 @@ function M.list()
       end)
     elseif action == "branch" then
       local branches = git_branches()
-      float_select("select branch", branches, function(branch_name)
+      M.float_select("select branch", branches, function(branch_name)
         local default_name = branch_name:gsub("/", "-")
         float_input("space name [" .. default_name .. "]", function(name)
           orc.create(name, { branch = branch_name })
@@ -264,7 +264,7 @@ function M.list()
       if #display == 0 then
         vim.notify("Orc: no untracked worktrees found", vim.log.levels.WARN)
       else
-        float_select("select worktree", display, function(item)
+        M.float_select("select worktree", display, function(item)
           local idx
           for i, d in ipairs(display) do
             if d == item then
@@ -293,9 +293,19 @@ function M.list()
       return
     end
     close()
-    float_select("delete '" .. name .. "'?", { "no", "yes" }, function(choice)
+    M.float_select("delete '" .. name .. "'?", { "no", "yes" }, function(choice)
       if choice == "yes" then
-        orc.delete(name)
+        local spaces = require("orc.spaces")
+        local space = spaces.spaces[name]
+        if space and spaces.has_uncommitted_changes(space.worktree_path) then
+          M.float_select("'" .. name .. "' has uncommitted changes. delete?", { "no", "yes" }, function(choice2)
+            if choice2 == "yes" then
+              orc.delete(name, { force = true })
+            end
+          end)
+        else
+          orc.delete(name, { force = true })
+        end
       end
     end)
   end, { buffer = buf, nowait = true })

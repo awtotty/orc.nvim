@@ -38,8 +38,8 @@ function M.toggle(name)
   require("orc.spaces").toggle(name)
 end
 
-function M.delete(name)
-  require("orc.spaces").delete(name)
+function M.delete(name, opts)
+  require("orc.spaces").delete(name, opts)
 end
 
 function M.switch(name)
