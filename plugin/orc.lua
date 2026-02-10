@@ -69,6 +69,12 @@ end, {
   desc = "Send a prompt to an Orc space",
 })
 
+vim.api.nvim_create_user_command("OrcGrid", function()
+  require("orc").grid()
+end, {
+  desc = "Toggle Orc grid view (show multiple spaces)",
+})
+
 vim.api.nvim_create_user_command("OrcSwitch", function(cmd)
   local name = cmd.fargs[1]
   if not name or name == "" then

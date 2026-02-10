@@ -373,6 +373,13 @@ end
 --- Toggle visibility of a space's terminal.
 ---@param name? string Defaults to active space. Use "@main" for the main worktree.
 function M.toggle(name)
+  -- Prevent individual toggles from breaking grid layout
+  local ok, grid = pcall(require, "orc.grid")
+  if ok and grid.is_active() then
+    vim.notify("Orc: close grid first (<leader>og) before toggling individual spaces", vim.log.levels.WARN)
+    return
+  end
+
   name = name or M.active_space or "@main"
 
   -- Lazily create a terminal for the main worktree
