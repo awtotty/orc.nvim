@@ -190,11 +190,11 @@ function M.list()
 
   -- Action lines
   local actions = {}
-  table.insert(lines, "   + new space")
+  table.insert(lines, "   + new space      (n)")
   actions[#lines] = "new"
-  table.insert(lines, "   + from branch")
+  table.insert(lines, "   + from branch    (b)")
   actions[#lines] = "branch"
-  table.insert(lines, "   + from worktree")
+  table.insert(lines, "   + from worktree  (w)")
   actions[#lines] = "worktree"
 
   -- Create buffer

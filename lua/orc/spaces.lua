@@ -7,12 +7,16 @@ local M = {}
 ---@field branch string Branch name
 ---@field status string "active"|"ready"|"needs_attention"|"exited"
 ---@field win number|nil Window ID if currently visible
+---@field last_file string|nil
 
 ---@type table<string, OrcSpace>
 M.spaces = {}
 
 ---@type string|nil
 M.active_space = nil
+
+---@type string|nil  -- last_file for @main when it hasn't been spawned yet
+M._main_last_file = nil
 
 local function get_config()
   return require("orc").config
@@ -194,15 +198,16 @@ local function spawn_space(name, worktree_path, branch)
     branch = branch,
     status = "active",
     win = nil,
+    last_file = (name == "@main") and M._main_last_file or nil,
   }
 
   -- Cycle-space keymaps on the terminal buffer
-  vim.api.nvim_buf_set_keymap(bufnr, "t", "<C-u>", "", {
+  vim.api.nvim_buf_set_keymap(bufnr, "n", "<C-k>", "", {
     callback = function() M.cycle(-1) end,
     noremap = true,
     silent = true,
   })
-  vim.api.nvim_buf_set_keymap(bufnr, "t", "<C-i>", "", {
+  vim.api.nvim_buf_set_keymap(bufnr, "n", "<C-j>", "", {
     callback = function() M.cycle(1) end,
     noremap = true,
     silent = true,
@@ -269,12 +274,17 @@ function M.save()
     return
   end
 
-  local data = { _active = M.active_space }
+  local data = { _active = M.active_space, _main_last_file = M._main_last_file }
   for name, space in pairs(M.spaces) do
-    if name ~= "@main" then
+    if name == "@main" then
+      if space.last_file then
+        data._main_last_file = space.last_file
+      end
+    else
       data[name] = {
         worktree_path = space.worktree_path,
         branch = space.branch,
+        last_file = space.last_file,
       }
     end
   end
@@ -312,11 +322,23 @@ function M.restore()
   end
 
   local saved_active = data._active
+  local main_last_file = data._main_last_file
   data._active = nil
+  data._main_last_file = nil
 
   for name, info in pairs(data) do
-    if not M.spaces[name] and vim.fn.isdirectory(info.worktree_path) == 1 then
+    if type(info) == "table" and info.worktree_path and not M.spaces[name] and vim.fn.isdirectory(info.worktree_path) == 1 then
       spawn_space(name, info.worktree_path, info.branch)
+      if M.spaces[name] and info.last_file then
+        M.spaces[name].last_file = info.last_file
+      end
+    end
+  end
+
+  if main_last_file then
+    M._main_last_file = main_last_file
+    if M.spaces["@main"] then
+      M.spaces["@main"].last_file = main_last_file
     end
   end
 
@@ -581,6 +603,25 @@ function M.switch(name)
     return
   end
 
+  -- Save current file as last_file for the space we're leaving
+  local current = vim.api.nvim_buf_get_name(0)
+  if M.active_space and current ~= "" then
+    local root = repo_root()
+    if root then
+      local old_space = M.spaces[M.active_space]
+      local old_root = old_space and old_space.worktree_path or root
+      if current:sub(1, #old_root + 1) == old_root .. "/" then
+        local rel = current:sub(#old_root + 2)
+        if old_space then
+          old_space.last_file = rel
+        end
+        if M.active_space == "@main" then
+          M._main_last_file = rel
+        end
+      end
+    end
+  end
+
   -- Resolve target worktree path
   local target_root
   if name == "@main" then
@@ -590,35 +631,40 @@ function M.switch(name)
     target_root = M.spaces[name].worktree_path
   end
 
-  -- Try to open the current file in the target worktree
-  local current = vim.api.nvim_buf_get_name(0)
-  if target_root and current ~= "" then
-    local root = repo_root()
-    if root then
-      -- Find relative path: check space worktrees first (more specific),
-      -- then fall back to main root
-      local rel = nil
-      for _, space in pairs(M.spaces) do
-        local wp = space.worktree_path
-        if current:sub(1, #wp + 1) == wp .. "/" then
-          rel = current:sub(#wp + 2)
-          break
-        end
-      end
-      if not rel and current:sub(1, #root + 1) == root .. "/" then
-        rel = current:sub(#root + 2)
-      end
+  -- Open file in target worktree: prefer target's last_file, fall back to current file's relative path
+  if target_root then
+    local target_space = M.spaces[name]
+    local rel = target_space and target_space.last_file
+    if not rel and name == "@main" then
+      rel = M._main_last_file
+    end
 
-      if rel then
-        local target_file = target_root .. "/" .. rel
-        if vim.fn.filereadable(target_file) == 1 then
-          vim.cmd("edit " .. vim.fn.fnameescape(target_file))
-        else
-          vim.cmd("enew")
+    -- Fall back to current file's relative path in target worktree
+    if not rel and current ~= "" then
+      local root = repo_root()
+      if root then
+        for _, space in pairs(M.spaces) do
+          local wp = space.worktree_path
+          if current:sub(1, #wp + 1) == wp .. "/" then
+            rel = current:sub(#wp + 2)
+            break
+          end
         end
+        if not rel and current:sub(1, #root + 1) == root .. "/" then
+          rel = current:sub(#root + 2)
+        end
+      end
+    end
+
+    if rel then
+      local target_file = target_root .. "/" .. rel
+      if vim.fn.filereadable(target_file) == 1 then
+        vim.cmd("edit " .. vim.fn.fnameescape(target_file))
       else
         vim.cmd("enew")
       end
+    else
+      vim.cmd("enew")
     end
   end
 
