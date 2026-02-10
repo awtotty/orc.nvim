@@ -474,7 +474,6 @@ function M.toggle(name)
   if space.status == "needs_attention" then
     space.status = "active"
   end
-  vim.cmd("startinsert")
 end
 
 --- Check if a worktree has uncommitted changes.
