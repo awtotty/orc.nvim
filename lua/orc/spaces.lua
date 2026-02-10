@@ -196,6 +196,18 @@ local function spawn_space(name, worktree_path, branch)
     win = nil,
   }
 
+  -- Cycle-space keymaps on the terminal buffer
+  vim.api.nvim_buf_set_keymap(bufnr, "t", "<C-u>", "", {
+    callback = function() M.cycle(-1) end,
+    noremap = true,
+    silent = true,
+  })
+  vim.api.nvim_buf_set_keymap(bufnr, "t", "<C-i>", "", {
+    callback = function() M.cycle(1) end,
+    noremap = true,
+    silent = true,
+  })
+
   if not M.active_space then
     M.active_space = name
   end
@@ -665,6 +677,37 @@ function M.get(name)
     return nil, nil
   end
   return M.spaces[name], name
+end
+
+--- Get a sorted list of all space names.
+---@return string[]
+local function sorted_space_names()
+  local names = vim.tbl_keys(M.spaces)
+  table.sort(names, function(a, b)
+    if a == "@main" then return true end
+    if b == "@main" then return false end
+    return a < b
+  end)
+  return names
+end
+
+--- Cycle to the next or previous space, opening its float if one was visible.
+---@param direction number 1 for forward, -1 for backward
+function M.cycle(direction)
+  local names = sorted_space_names()
+  if #names <= 1 then return end
+
+  local current = M.active_space or "@main"
+  local idx = 1
+  for i, name in ipairs(names) do
+    if name == current then
+      idx = i
+      break
+    end
+  end
+
+  idx = ((idx - 1 + direction) % #names) + 1
+  M.switch(names[idx])
 end
 
 --- Get space names for completion.
