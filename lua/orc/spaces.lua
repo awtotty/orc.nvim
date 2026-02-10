@@ -8,6 +8,7 @@ local M = {}
 ---@field status string "active"|"ready"|"needs_attention"|"exited"
 ---@field win number|nil Window ID if currently visible
 ---@field last_file string|nil
+---@field last_cursor number[]|nil  -- {line, col}
 
 ---@type table<string, OrcSpace>
 M.spaces = {}
@@ -17,6 +18,8 @@ M.active_space = nil
 
 ---@type string|nil  -- last_file for @main when it hasn't been spawned yet
 M._main_last_file = nil
+---@type number[]|nil  -- last_cursor for @main when it hasn't been spawned yet
+M._main_last_cursor = nil
 
 local function get_config()
   return require("orc").config
@@ -274,17 +277,23 @@ function M.save()
     return
   end
 
-  local data = { _active = M.active_space, _main_last_file = M._main_last_file }
+  local data = {
+    _active = M.active_space,
+    _main_last_file = M._main_last_file,
+    _main_last_cursor = M._main_last_cursor,
+  }
   for name, space in pairs(M.spaces) do
     if name == "@main" then
       if space.last_file then
         data._main_last_file = space.last_file
+        data._main_last_cursor = space.last_cursor
       end
     else
       data[name] = {
         worktree_path = space.worktree_path,
         branch = space.branch,
         last_file = space.last_file,
+        last_cursor = space.last_cursor,
       }
     end
   end
@@ -323,22 +332,31 @@ function M.restore()
 
   local saved_active = data._active
   local main_last_file = data._main_last_file
+  local main_last_cursor = data._main_last_cursor
   data._active = nil
   data._main_last_file = nil
+  data._main_last_cursor = nil
 
   for name, info in pairs(data) do
     if type(info) == "table" and info.worktree_path and not M.spaces[name] and vim.fn.isdirectory(info.worktree_path) == 1 then
       spawn_space(name, info.worktree_path, info.branch)
-      if M.spaces[name] and info.last_file then
-        M.spaces[name].last_file = info.last_file
+      if M.spaces[name] then
+        if info.last_file then
+          M.spaces[name].last_file = info.last_file
+        end
+        if info.last_cursor then
+          M.spaces[name].last_cursor = info.last_cursor
+        end
       end
     end
   end
 
   if main_last_file then
     M._main_last_file = main_last_file
+    M._main_last_cursor = main_last_cursor
     if M.spaces["@main"] then
       M.spaces["@main"].last_file = main_last_file
+      M.spaces["@main"].last_cursor = main_last_cursor
     end
   end
 
@@ -595,6 +613,21 @@ function M.get_active()
   return M.active_space
 end
 
+--- Find the first non-floating, non-terminal window (the "editor" window).
+---@return number|nil
+local function find_editor_win()
+  for _, win_id in ipairs(vim.api.nvim_list_wins()) do
+    local config = vim.api.nvim_win_get_config(win_id)
+    if config.relative == "" then
+      local buf = vim.api.nvim_win_get_buf(win_id)
+      if vim.bo[buf].buftype ~= "terminal" then
+        return win_id
+      end
+    end
+  end
+  return nil
+end
+
 --- Switch the active space and open the current file in that worktree.
 ---@param name string
 function M.switch(name)
@@ -603,8 +636,16 @@ function M.switch(name)
     return
   end
 
-  -- Save current file as last_file for the space we're leaving
-  local current = vim.api.nvim_buf_get_name(0)
+  -- Find the editor window so we read/write the correct buffer
+  local editor_win = find_editor_win()
+
+  -- Save current file and cursor for the space we're leaving
+  local current = ""
+  if editor_win then
+    local buf = vim.api.nvim_win_get_buf(editor_win)
+    current = vim.api.nvim_buf_get_name(buf)
+  end
+
   if M.active_space and current ~= "" then
     local root = repo_root()
     if root then
@@ -612,11 +653,14 @@ function M.switch(name)
       local old_root = old_space and old_space.worktree_path or root
       if current:sub(1, #old_root + 1) == old_root .. "/" then
         local rel = current:sub(#old_root + 2)
+        local cursor = editor_win and vim.api.nvim_win_get_cursor(editor_win) or nil
         if old_space then
           old_space.last_file = rel
+          old_space.last_cursor = cursor
         end
         if M.active_space == "@main" then
           M._main_last_file = rel
+          M._main_last_cursor = cursor
         end
       end
     end
@@ -635,8 +679,10 @@ function M.switch(name)
   if target_root then
     local target_space = M.spaces[name]
     local rel = target_space and target_space.last_file
+    local target_cursor = target_space and target_space.last_cursor
     if not rel and name == "@main" then
       rel = M._main_last_file
+      target_cursor = M._main_last_cursor
     end
 
     -- Fall back to current file's relative path in target worktree
@@ -654,12 +700,21 @@ function M.switch(name)
           rel = current:sub(#root + 2)
         end
       end
+      target_cursor = nil  -- no saved cursor for fallback
+    end
+
+    -- Ensure edit runs in the editor window, not a terminal window
+    if editor_win then
+      vim.api.nvim_set_current_win(editor_win)
     end
 
     if rel then
       local target_file = target_root .. "/" .. rel
       if vim.fn.filereadable(target_file) == 1 then
         vim.cmd("edit " .. vim.fn.fnameescape(target_file))
+        if target_cursor then
+          pcall(vim.api.nvim_win_set_cursor, 0, target_cursor)
+        end
       else
         vim.cmd("enew")
       end
